@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';  // Add this import
 import '../services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
@@ -120,6 +121,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     return Scaffold(
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            icon: const Icon(CupertinoIcons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: _buildProfileView(user),
     );
   }
@@ -175,7 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (user.displayName?.isNotEmpty ?? false) ...[
                     Row(
                       children: [
-                        const Icon(Icons.person_outline),
+                        const Icon(Icons.person_outline),  // Update icon
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -201,7 +217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                   Row(
                     children: [
-                      const Icon(Icons.email_outlined),
+                      const Icon(Icons.email_outlined),  // Update icon
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -226,7 +242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.lock_outline),
+                      const Icon(Icons.lock_outline),  // Update icon
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(

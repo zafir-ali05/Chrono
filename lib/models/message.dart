@@ -1,3 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+
 class Message {
   final String id;
   final String senderId;
@@ -14,13 +18,21 @@ class Message {
   });
 
   factory Message.fromMap(Map<String, dynamic> data, String id) {
-    return Message(
-      id: id,
-      senderId: data['senderId'],
-      senderName: data['senderName'],
-      content: data['content'],
-      timestamp: (data['timestamp'] as dynamic).toDate(),
-    );
+    try {
+      final timestamp = data['timestamp'];
+      return Message(
+        id: id,
+        senderId: data['senderId'] ?? '',
+        senderName: data['senderName'] ?? 'Unknown',
+        content: data['content'] ?? '',
+        timestamp: timestamp is Timestamp 
+            ? timestamp.toDate() 
+            : (timestamp ?? DateTime.now()),
+      );
+    } catch (e) {
+      print("Error creating Message from map: $e"); // Debug print
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toMap() {

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:random_string/random_string.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/group.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 class GroupService {
   final CollectionReference _groupsCollection = 
@@ -88,42 +90,65 @@ class GroupService {
   }
 
   Future<void> leaveGroup(String groupId, String userId) async {
-    final docSnapshot = await _groupsCollection.doc(groupId).get();
-    
-    if (!docSnapshot.exists) {
-      throw Exception('Group not found');
+    try {
+      // First get the group to check if user is the last member
+      final groupDoc = await _groupsCollection.doc(groupId).get();
+      if (!groupDoc.exists) {
+        throw Exception('Group not found');
+      }
+
+      // Cast the data to Map<String, dynamic>
+      final groupData = groupDoc.data() as Map<String, dynamic>;
+      final currentMembers = List<String>.from(groupData['members'] ?? []);
+      
+      if (!currentMembers.contains(userId)) {
+        throw Exception('You are not a member of this group');
+      }
+
+      currentMembers.remove(userId);
+
+      // If this is the last member, delete the group and its subcollections
+      if (currentMembers.isEmpty) {
+        await _deleteGroupSubcollections(groupId);
+        await _groupsCollection.doc(groupId).delete();
+      } else {
+        // Otherwise just update members
+        await _groupsCollection.doc(groupId).update({
+          'members': currentMembers,
+        });
+      }
+    } catch (e) {
+      print('Error leaving group: $e');
+      rethrow;
     }
+  }
 
-    final groupData = docSnapshot.data() as Map<String, dynamic>;
-    final members = List<String>.from(groupData['members']);
-
-    if (!members.contains(userId)) {
-      throw Exception('You are not a member of this group');
-    }
-
-    members.remove(userId);
-
-    if (members.isEmpty) {
-      // Delete all assignments for this group
-      final assignmentsSnapshot = await _assignmentsCollection
-          .where('groupId', isEqualTo: groupId)
+  Future<void> _deleteGroupSubcollections(String groupId) async {
+    try {
+      // Delete messages subcollection
+      final messagesQuery = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('messages')
           .get();
       
-      final batch = FirebaseFirestore.instance.batch();
-      
-      // Add assignment deletions to batch
-      for (var doc in assignmentsSnapshot.docs) {
-        batch.delete(doc.reference);
+      for (var doc in messagesQuery.docs) {
+        await doc.reference.delete();
       }
+
+      // Delete assignments subcollection
+      final assignmentsQuery = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('assignments')
+          .get();
       
-      // Add group deletion to batch
-      batch.delete(_groupsCollection.doc(groupId));
-      
-      // Execute all deletions in a single batch
-      await batch.commit();
-    } else {
-      // Update group with remaining members
-      await _groupsCollection.doc(groupId).update({'members': members});
+      for (var doc in assignmentsQuery.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      print('Error deleting subcollections: $e');
+      rethrow;
     }
   }
 

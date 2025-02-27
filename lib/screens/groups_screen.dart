@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import '../services/group_service.dart';
 import '../services/auth_service.dart';
@@ -115,19 +116,40 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   Widget _buildGroupCard(Group group) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ListTile(
-        title: Text(group.name),
-        subtitle: Text('Group Code: ${group.id}'),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => GroupDetailsScreen(group: group),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(16),
+          title: Text(
+            group.name,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
-          );
-        },
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Group Code: ${group.id}',
+              style: TextStyle(
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GroupDetailsScreen(group: group),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -148,12 +170,30 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
           final groups = snapshot.data!;
           if (groups.isEmpty) {
-            return const Center(
-              child: Text('No groups yet. Create or join a group!'),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.group_outlined,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No groups yet. Create or join a group!',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
             );
           }
 
           return ListView.builder(
+            padding: const EdgeInsets.only(top: 16, bottom: 80), // Add padding at top and bottom
             itemCount: groups.length,
             itemBuilder: (context, index) => _buildGroupCard(groups[index]),
           );

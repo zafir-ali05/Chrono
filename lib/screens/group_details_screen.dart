@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import '../models/group.dart';
 import '../models/assignment.dart';
 import '../services/assignment_service.dart';
@@ -188,7 +189,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
           ],
         ),
         trailing: IconButton(
-          icon: const Icon(Icons.edit),
+          icon: const Icon(Icons.edit_outlined),  // Update icon
           onPressed: () => _showEditAssignmentDialog(assignment),
         ),
       ),
@@ -331,6 +332,19 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
     );
   }
 
+  void _toggleChat() {
+    setState(() {
+      if (_isChatVisible) {
+        _animationController.reverse().then((_) {
+          setState(() => _isChatVisible = false);
+        });
+      } else {
+        _isChatVisible = true;
+        _animationController.forward();
+      }
+    });
+  }
+
   Widget _buildChatBox() {
     final screenWidth = MediaQuery.of(context).size.width;
     final chatBoxWidth = screenWidth * 0.9;
@@ -386,11 +400,28 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
                       child: StreamBuilder<List<Message>>(
                         stream: _chatService.getMessages(widget.group.id),
                         builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Text('Error: ${snapshot.error}'),
+                            );
+                          }
+
                           if (!snapshot.hasData) {
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
 
                           final messages = snapshot.data!;
+                          if (messages.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                'No messages yet.\nStart the conversation!',
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          }
+
                           return ListView.builder(
                             reverse: true,
                             padding: const EdgeInsets.all(8),
@@ -483,6 +514,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.group.name),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Stack(
         children: [
@@ -523,7 +558,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
               heroTag: 'leaveButton',
               onPressed: () => _confirmLeaveGroup(context),
               backgroundColor: Colors.red,
-              child: const Icon(Icons.exit_to_app),
+              child: const Icon(Icons.logout_outlined),  // Update icon
             ),
           ),
           Positioned(
@@ -532,12 +567,9 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
             child: FloatingActionButton(
               key: _chatButtonKey,  // Add this key
               heroTag: 'chatButton',
-              onPressed: () {
-                setState(() => _isChatVisible = true);
-                _animationController.forward();
-              },
+              onPressed: _toggleChat, // Use the new toggle method
               backgroundColor: Colors.green,
-              child: const Icon(Icons.chat),
+              child: Icon(_isChatVisible ? Icons.close : Icons.chat_outlined),  // Update icon
             ),
           ),
           Positioned(
@@ -546,7 +578,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
             child: FloatingActionButton(
               heroTag: 'addButton',
               onPressed: () => _showAddAssignmentDialog(context),
-              child: const Icon(Icons.add),
+              child: const Icon(Icons.add_rounded),
             ),
           ),
         ],

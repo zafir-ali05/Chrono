@@ -39,12 +39,12 @@ dependencies:
   firebase_auth: ^5.5.0
   google_sign_in: ^6.1.5
   cloud_firestore: 5.6.4
-
-
+  # Remove or comment out persistent_bottom_nav_bar
+  # persistent_bottom_nav_bar: ^6.2.1
+  salomon_bottom_bar: ^3.3.2
   flutter_speed_dial: ^7.0.0
   random_string: ^2.3.1
   rxdart: ^0.28.0
-  salomon_bottom_bar: ^3.3.2
   provider: ^6.0.5
   shared_preferences: ^2.5.2
   package_info_plus: ^4.1.0
