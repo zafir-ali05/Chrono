@@ -135,9 +135,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Groups'),
-      ),
       body: StreamBuilder<List<Group>>(
         stream: _groupService.getUserGroups(_authService.currentUser!.uid),
         builder: (context, snapshot) {

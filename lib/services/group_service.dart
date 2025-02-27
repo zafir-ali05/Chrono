@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:random_string/random_string.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/group.dart';
 
 class GroupService {
@@ -7,6 +8,8 @@ class GroupService {
       FirebaseFirestore.instance.collection('groups');
   final CollectionReference _assignmentsCollection = 
       FirebaseFirestore.instance.collection('assignments');
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<Group> createGroup(String name, String creatorId) async {
     // Generate a unique 6-character code
@@ -27,6 +30,38 @@ class GroupService {
 
     await _groupsCollection.doc(groupId).set(group.toMap());
     return group;
+  }
+
+  Future<void> createGroupFromModel(Group group) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) {
+      throw Exception('User must be authenticated');
+    }
+
+    try {
+      // Create the group in the main groups collection
+      await _groupsCollection.doc(group.id).set({
+        ...group.toMap(),
+        'creatorId': userId,
+        'members': [userId], // Store as array instead of map
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Add reference to user's groups collection
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('groups')
+          .doc(group.id)
+          .set({
+        'groupId': group.id,
+        'name': group.name,
+        'joinedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error creating group: $e');
+      rethrow;
+    }
   }
 
   Future<Group?> joinGroup(String groupId, String userId) async {
@@ -93,13 +128,45 @@ class GroupService {
   }
 
   Stream<List<Group>> getUserGroups(String userId) {
+    if (userId.isEmpty) {
+      throw Exception('User ID cannot be empty');
+    }
+
     return _groupsCollection
         .where('members', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Group.fromMap(doc.data() as Map<String, dynamic>))
+          return snapshot.docs.map((doc) {
+            try {
+              return Group.fromMap({
+                ...doc.data() as Map<String, dynamic>,
+                'id': doc.id,
+              });
+            } catch (e) {
+              print('Error parsing group data: $e');
+              return null;
+            }
+          })
+          .where((group) => group != null)
+          .cast<Group>()
           .toList();
-    });
+        });
+  }
+
+  Stream<List<Group>> getUserGroupsFromUser() {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) {
+      throw Exception('User must be authenticated');
+    }
+
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('groups')
+        .orderBy('name')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Group.fromMap({...doc.data(), 'id': doc.id}))
+            .toList());
   }
 }

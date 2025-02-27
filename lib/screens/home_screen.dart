@@ -43,9 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Upcoming Assignments'),
-      ),
       body: StreamBuilder<List<Assignment>>(
         stream: _assignmentService.getUserAssignments(_authService.currentUser!.uid),
         builder: (context, snapshot) {

@@ -29,7 +29,17 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final List<String> _titles = const [
+      'Upcoming Assignments',
+      'Groups',
+      'Profile'
+    ];
+
     return Scaffold(
+      appBar: AppBar(
+        title: Text(_titles[_selectedIndex]),
+        elevation: 0,
+      ),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
