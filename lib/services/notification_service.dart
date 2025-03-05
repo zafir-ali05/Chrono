@@ -188,11 +188,16 @@ class NotificationService {
         .get();
 
     for (var doc in assignments.docs) {
-      final assignment = Assignment.fromMap({
-        ...doc.data(),
-        'id': doc.id,
-        'groupId': doc.reference.parent.parent?.id ?? '',
-      });
+      // Get the group ID from the reference path
+      final groupId = doc.reference.parent.parent?.id ?? '';
+      
+      // Create assignment with required parameters
+      final assignment = Assignment.fromMap(
+        doc.data(),
+        id: doc.id, // Add the missing id parameter
+        groupId: groupId, // Add the missing groupId parameter
+      );
+      
       final groupSnapshot = await doc.reference.parent.parent?.get();
       if (groupSnapshot != null && groupSnapshot.exists) {
         final groupName = groupSnapshot.data()?['name'];
@@ -215,11 +220,16 @@ class NotificationService {
         .get();
 
     for (var doc in assignments.docs) {
-      final assignment = Assignment.fromMap({
-        ...doc.data(),
-        'id': doc.id,
-        'groupId': doc.reference.parent.parent?.id ?? '',
-      });
+      // Get the group ID from the reference path
+      final groupId = doc.reference.parent.parent?.id ?? '';
+      
+      // Create assignment with required parameters
+      final assignment = Assignment.fromMap(
+        doc.data(),
+        id: doc.id, // Add the missing id parameter
+        groupId: groupId, // Add the missing groupId parameter
+      );
+      
       final groupSnapshot = await doc.reference.parent.parent?.get();
       if (groupSnapshot != null && groupSnapshot.exists) {
         final groupName = groupSnapshot.data()?['name'];

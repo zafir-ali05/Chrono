@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'main_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../utils/snackbar_utils.dart';
+import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -154,10 +156,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           try {
                             await _auth.resetPassword(_emailController.text);
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Password reset email sent!'),
-                                ),
+                              SnackBarUtils.showAwesomeSnackBar(
+                                context: context,
+                                title: 'Success!',
+                                message: 'Password reset email sent! Check your inbox.',
+                                contentType: ContentType.success,
                               );
                             }
                           } catch (e) {

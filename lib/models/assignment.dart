@@ -8,8 +8,9 @@ class Assignment {
   final String className;
   final String name;
   final DateTime dueDate;
-  final DateTime createdAt;
   final String creatorId;
+  final DateTime createdAt;
+  final bool notifiedOverdue;
 
   Assignment({
     required this.id,
@@ -17,47 +18,60 @@ class Assignment {
     required this.className,
     required this.name,
     required this.dueDate,
-    required this.createdAt,
     required this.creatorId,
+    required this.createdAt,
+    this.notifiedOverdue = false,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'groupId': groupId,
-      'className': className,
-      'name': name,
-      'dueDate': dueDate.toIso8601String(),
-      'createdAt': createdAt.toIso8601String(),
-      'creatorId': creatorId,
-    };
-  }
-
-  factory Assignment.fromMap(Map<String, dynamic> map, {String? id, String? groupId}) {
+  factory Assignment.fromMap(Map<String, dynamic> map, {required String id, required String groupId}) {
+    // Handle potential null values in the map
     try {
-      print("Parsing assignment with data: $map"); // Debug print
-      final assignment = Assignment(
-        id: id ?? map['id'] ?? '',
-        groupId: groupId ?? map['groupId'] ?? '',
-        className: map['className'] ?? '',
-        name: map['name'] ?? '',
-        dueDate: _parseDateTime(map['dueDate']) ?? DateTime.now(),
-        createdAt: _parseDateTime(map['createdAt']) ?? DateTime.now(),
+      final timestamp = map['dueDate'];
+      final DateTime dueDate;
+      
+      if (timestamp is Timestamp) {
+        dueDate = timestamp.toDate();
+      } else {
+        // Default to current date if dueDate is missing or invalid
+        dueDate = DateTime.now();
+        print('Warning: Invalid dueDate for assignment $id, using current date as fallback');
+      }
+      
+      final createdTimestamp = map['createdAt'];
+      final DateTime createdAt;
+      
+      if (createdTimestamp is Timestamp) {
+        createdAt = createdTimestamp.toDate();
+      } else {
+        // Default to current date if createdAt is missing
+        createdAt = DateTime.now();
+      }
+      
+      return Assignment(
+        id: id,
+        groupId: groupId,
+        className: map['className'] ?? 'Unnamed Class',
+        name: map['name'] ?? 'Untitled Assignment',
+        dueDate: dueDate,
         creatorId: map['creatorId'] ?? '',
+        createdAt: createdAt,
+        notifiedOverdue: map['notifiedOverdue'] ?? false,
       );
-      print("Successfully parsed assignment: ${assignment.name}"); // Debug print
-      return assignment;
     } catch (e) {
-      print("Error creating Assignment from map: $e"); // Debug print
+      print('Error creating assignment from map: $e');
+      print('Problematic map: $map');
       rethrow;
     }
   }
 
-  static DateTime? _parseDateTime(dynamic value) {
-    if (value == null) return null;
-    if (value is Timestamp) return value.toDate();
-    if (value is String) return DateTime.parse(value);
-    if (value is DateTime) return value;
-    throw FormatException('Invalid datetime format: $value');
+  Map<String, dynamic> toMap() {
+    return {
+      'className': className,
+      'name': name,
+      'dueDate': Timestamp.fromDate(dueDate),
+      'creatorId': creatorId,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'notifiedOverdue': notifiedOverdue,
+    };
   }
 }

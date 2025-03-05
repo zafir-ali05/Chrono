@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import 'settings_screen.dart';
+import '../utils/snackbar_utils.dart';
+import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool? initialIsSignUp;  // Add this line
@@ -94,10 +96,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                   if (mounted) {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password changed successfully'),
-                      ),
+                    SnackBarUtils.showAwesomeSnackBar(
+                      context: context,
+                      title: 'Password Updated',
+                      message: 'Your password has been changed successfully!',
+                      contentType: ContentType.success,
                     );
                   }
                 } catch (e) {

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/assignment.dart';
+import '../models/group.dart'; // Add this line to import the Group class
 import '../services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
@@ -146,5 +147,94 @@ class AssignmentService {
         .collection('assignments')
         .doc(assignmentId)
         .delete();
+  }
+
+  /// Get all assignments for a user across all groups
+  Stream<List<Assignment>> getAllUserAssignments(String userId) {
+    return _firestore
+        .collectionGroup('assignments')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      final List<Assignment> assignments = [];
+      
+      for (final doc in snapshot.docs) {
+        try {
+          // Safely get the group ID
+          final groupPath = doc.reference.parent.parent?.path;
+          if (groupPath == null) continue;
+          
+          final groupId = doc.reference.parent.parent!.id;
+          
+          // Check if user is a member of this group
+          final groupDoc = await _firestore.collection('groups').doc(groupId).get();
+          if (!groupDoc.exists) continue;
+          
+          final groupData = groupDoc.data();
+          if (groupData == null) continue;
+          
+          // Check if the members field exists and contains the user
+          final members = groupData['members'];
+          if (members == null || !(members is List) || !members.contains(userId)) {
+            continue;
+          }
+          
+          // Safely create and add the assignment
+          try {
+            final assignmentData = doc.data();
+            
+            // Skip if required fields are missing
+            if (!_validateAssignmentData(assignmentData)) {
+              print('Skipping invalid assignment data: $assignmentData');
+              continue;
+            }
+            
+            final assignment = Assignment.fromMap(
+              assignmentData,
+              id: doc.id,
+              groupId: groupId,
+            );
+            
+            assignments.add(assignment);
+          } catch (e) {
+            print('Error creating assignment from doc ${doc.id}: $e');
+            // Skip this assignment if there's an error
+            continue;
+          }
+        } catch (e) {
+          print('Error processing assignment doc: $e');
+          // Skip this document if there's an error
+          continue;
+        }
+      }
+      
+      return assignments;
+    });
+  }
+  
+  // Helper method to validate assignment data
+  bool _validateAssignmentData(Map<String, dynamic> data) {
+    // Check for required fields
+    return data.containsKey('name') && 
+           data.containsKey('className') && 
+           data.containsKey('dueDate');
+  }
+  
+  /// Get upcoming assignments for a user (due in the next week)
+  Stream<List<Assignment>> getUpcomingAssignments(String userId) {
+    final oneWeekFromNow = DateTime.now().add(const Duration(days: 7));
+    
+    return getAllUserAssignments(userId).map((assignments) {
+      try {
+        return assignments
+            .where((assignment) => 
+                assignment.dueDate.isAfter(DateTime.now()) && 
+                assignment.dueDate.isBefore(oneWeekFromNow))
+            .toList()
+          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      } catch (e) {
+        print('Error filtering upcoming assignments: $e');
+        return [];
+      }
+    });
   }
 }

@@ -194,4 +194,19 @@ class GroupService {
             .map((doc) => Group.fromMap({...doc.data(), 'id': doc.id}))
             .toList());
   }
+
+  Future<void> updateGroup({
+    required String groupId,
+    required String name,
+  }) async {
+    try {
+      // Update the group in Firestore
+      await _groupsCollection.doc(groupId).update({
+        'name': name,
+      });
+    } catch (e) {
+      print('Error updating group: $e');
+      rethrow;
+    }
+  }
 }

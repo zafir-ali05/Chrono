@@ -4,6 +4,7 @@ import 'package:salomon_bottom_bar/salomon_bottom_bar.dart';
 import 'home_screen.dart';
 import 'groups_screen.dart';
 import 'profile_screen.dart';
+import 'calendar_screen.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -36,17 +37,20 @@ class _MainScreenState extends State<MainScreen> {
           _currentIndex == 0
               ? 'Upcoming Assignments'
               : _currentIndex == 1
-                  ? 'Groups'
-                  : 'Profile',
+                  ? 'Calendar'
+                  : _currentIndex == 2
+                      ? 'Groups'
+                      : 'Profile',
         ),
         elevation: 0,
       ),
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          const HomeScreen(),
-          const GroupsScreen(),
-          ProfileScreen(initialIsSignUp: widget.isSignUp),
+          const HomeScreen(),        // Index 0
+          const CalendarScreen(),    // Index 1 (moved up)
+          const GroupsScreen(),      // Index 2 (moved down) 
+          ProfileScreen(initialIsSignUp: widget.isSignUp), // Index 3
         ],
       ),
       bottomNavigationBar: Container(
@@ -74,6 +78,7 @@ class _MainScreenState extends State<MainScreen> {
               vertical: 10,
             ),
             items: [
+              // Home (Index 0)
               SalomonBottomBarItem(
                 icon: const Icon(Icons.assignment_outlined, size: 24),
                 activeIcon: const Icon(Icons.assignment, size: 24),
@@ -81,6 +86,15 @@ class _MainScreenState extends State<MainScreen> {
                 selectedColor: Theme.of(context).colorScheme.primary,
                 unselectedColor: Colors.grey,
               ),
+              // Calendar (Index 1)
+              SalomonBottomBarItem(
+                icon: const Icon(Icons.calendar_month_outlined, size: 24),
+                activeIcon: const Icon(Icons.calendar_month, size: 24),
+                title: const Text("Calendar"),
+                selectedColor: Theme.of(context).colorScheme.tertiary,
+                unselectedColor: Colors.grey,
+              ),
+              // Groups (Index 2)
               SalomonBottomBarItem(
                 icon: const Icon(Icons.group_outlined, size: 24),
                 activeIcon: const Icon(Icons.group, size: 24),
@@ -88,6 +102,7 @@ class _MainScreenState extends State<MainScreen> {
                 selectedColor: Theme.of(context).colorScheme.secondary,
                 unselectedColor: Colors.grey,
               ),
+              // Profile (Index 3)
               SalomonBottomBarItem(
                 icon: const Icon(Icons.person_outline, size: 24),
                 activeIcon: const Icon(Icons.person, size: 24),
