@@ -8,6 +8,7 @@ import '../services/group_service.dart';
 import '../utils/date_utils.dart';
 import '../services/chat_service.dart';
 import '../models/message.dart';
+import 'group_settings_screen.dart';  // Add this import
 
 class GroupDetailsScreen extends StatefulWidget {
   final Group group;
@@ -61,7 +62,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
         title: Text(widget.group.name),
         actions: [
           IconButton(
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(Icons.info_outline), // Changed icon to info_outline
             onPressed: _showGroupOptions,
           ),
         ],
@@ -598,30 +599,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
   }
 
   void _showGroupOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Edit Group'),
-              onTap: () {
-                Navigator.pop(context);
-                _showEditGroupDialog();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.exit_to_app),
-              title: const Text('Leave Group'),
-              onTap: () {
-                Navigator.pop(context);
-                _confirmLeaveGroup(context);
-              },
-            ),
-          ],
-        ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupSettingsScreen(group: widget.group),
       ),
     );
   }

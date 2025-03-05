@@ -237,4 +237,13 @@ class AssignmentService {
       }
     });
   }
+
+  Stream<int> getGroupAssignmentCount(String groupId) {
+    return _firestore
+        .collection('groups')
+        .doc(groupId)
+        .collection('assignments')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
 }

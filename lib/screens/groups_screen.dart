@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import '../services/group_service.dart';
 import '../services/auth_service.dart';
 import '../models/group.dart';
@@ -184,10 +185,31 @@ class _GroupsScreenState extends State<GroupsScreen> {
           return _buildGroupList(groups);
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showActionsBottomSheet,
-        child: const Icon(Icons.add),
-        tooltip: 'Create or Join Group',
+      floatingActionButton: SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        overlayColor: Colors.black,
+        overlayOpacity: 0.4,
+        spacing: 12,
+        spaceBetweenChildren: 12,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.group_add),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            label: 'Create Group',
+            onTap: _showCreateGroupDialog,
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.login),
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+            foregroundColor: Theme.of(context).colorScheme.onSecondary,
+            label: 'Join Group',
+            onTap: _showJoinGroupDialog,
+          ),
+        ],
       ),
     );
   }
@@ -385,57 +407,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => GroupDetailsScreen(group: group),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showActionsBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    child: Icon(
-                      Icons.group_add,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  title: const Text('Create Group'),
-                  subtitle: const Text('Start a new group for assignments'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showCreateGroupDialog();
-                  },
-                ),
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-                    child: Icon(
-                      Icons.login,
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
-                  ),
-                  title: const Text('Join Group'),
-                  subtitle: const Text('Join using a group code'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showJoinGroupDialog();
-                  },
-                ),
-              ],
-            ),
           ),
         );
       },

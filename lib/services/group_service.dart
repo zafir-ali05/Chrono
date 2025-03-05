@@ -209,4 +209,92 @@ class GroupService {
       rethrow;
     }
   }
+
+  Stream<List<String>> getGroupMemberNames(String groupId) {
+    return _firestore
+        .collection('groups')
+        .doc(groupId)
+        .collection('members')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      final List<String> names = [];
+      for (var doc in snapshot.docs) {
+        final userDoc = await _firestore.collection('users').doc(doc.id).get();
+        final userName = userDoc.data()?['displayName'] as String? ?? 'Unknown User';
+        names.add(userName);
+      }
+      return names;
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> getGroupMembers(String groupId) {
+    // Add print for debugging
+    print('Fetching members for group: $groupId');
+    
+    return _groupsCollection
+        .doc(groupId)
+        .snapshots()
+        .asyncMap((groupDoc) async {
+      if (!groupDoc.exists) {
+        print('Group document does not exist');
+        return [];
+      }
+
+      final groupData = groupDoc.data() as Map<String, dynamic>;
+      
+      // Ensure we extract the members as a List<dynamic> then cast to String
+      final membersList = groupData['members'];
+      if (membersList == null || membersList is! List) {
+        print('Members list is null or not a List: $membersList');
+        return [];
+      }
+      
+      final List<String> memberIds = membersList.cast<String>();
+      print('Found ${memberIds.length} member IDs'); // Debug print
+
+      final List<Map<String, dynamic>> memberDetails = [];
+      
+      // Fetch user details for each member ID
+      for (String memberId in memberIds) {
+        try {
+          final userDoc = await _firestore
+              .collection('users')
+              .doc(memberId)
+              .get();
+
+          if (userDoc.exists) {
+            final userData = userDoc.data() ?? {};
+            memberDetails.add({
+              'uid': memberId,
+              'displayName': userData['displayName'] ?? 'User ${memberDetails.length + 1}',
+              'email': userData['email'] ?? '',
+              'isOwner': memberId == groupData['creatorId'],
+            });
+            print('Added member: ${userData['displayName']}');
+          } else {
+            print('User document not found for ID: $memberId');
+            // Add placeholder for users that don't exist anymore
+            memberDetails.add({
+              'uid': memberId,
+              'displayName': 'User ${memberDetails.length + 1}',
+              'email': '',
+              'isOwner': memberId == groupData['creatorId'],
+            });
+          }
+        } catch (e) {
+          print('Error fetching user details for $memberId: $e');
+          // Still add a placeholder
+          memberDetails.add({
+            'uid': memberId,
+            'displayName': 'User ${memberDetails.length + 1}',
+            'email': '',
+            'isOwner': memberId == groupData['creatorId'],
+          });
+        }
+      }
+
+      print('Returning ${memberDetails.length} member details'); // Debug print
+      return memberDetails;
+    });
+  }
 }
