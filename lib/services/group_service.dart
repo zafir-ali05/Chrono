@@ -297,4 +297,15 @@ class GroupService {
       return memberDetails;
     });
   }
+
+  Future<String> getGroupName(String groupId) async {
+    try {
+      final doc = await _groupsCollection.doc(groupId).get();
+      final data = doc.data() as Map<String, dynamic>?;
+      return data?['name'] as String? ?? 'Unknown Group';
+    } catch (e) {
+      print('Error fetching group name: $e');
+      return 'Unknown Group';
+    }
+  }
 }

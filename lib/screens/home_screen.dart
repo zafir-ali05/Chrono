@@ -3,69 +3,184 @@ import '../models/assignment.dart';
 import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
 import '../utils/date_utils.dart' as app_date_utils;
+import '../services/group_service.dart'; // Add this line at the top with other imports
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final assignmentService = AssignmentService();
-    final authService = AuthService();
-    final currentUser = authService.currentUser;
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-    if (currentUser == null) {
+class _HomeScreenState extends State<HomeScreen> {
+  final AssignmentService _assignmentService = AssignmentService();
+  final AuthService _authService = AuthService();
+  final GroupService _groupService = GroupService(); // Add this line at the top with other services
+  final TextEditingController _searchController = TextEditingController();
+  final Map<String, String> _groupNameCache = {}; // Add cache to store group names
+  String _searchTerm = '';
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Assignment> _filterAssignments(List<Assignment> assignments, String query) {
+    if (query.isEmpty) return assignments;
+    
+    final lowercaseQuery = query.toLowerCase();
+    return assignments.where((assignment) {
+      return assignment.name.toLowerCase().contains(lowercaseQuery) ||
+             assignment.className.toLowerCase().contains(lowercaseQuery);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = _authService.currentUser;
+
+    if (user == null) {
       return const Center(
         child: Text('Please sign in to view your assignments'),
       );
     }
 
-    return StreamBuilder<List<Assignment>>(
-      stream: assignmentService.getUserAssignments(currentUser.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _searchTerm = value),
+              decoration: InputDecoration(
+                hintText: 'Search assignments or classes',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchTerm.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchTerm = '');
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              style: const TextStyle(fontSize: 15),
+            ),
+          ),
+        ),
+        
+        // Stream of assignments
+        Expanded(
+          child: StreamBuilder<List<Assignment>>(
+            stream: _assignmentService.getUserAssignments(user.uid),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-        if (snapshot.hasError) {
-          return _buildErrorWidget(context, snapshot.error);
-        }
+              if (snapshot.hasError) {
+                return _buildErrorWidget(snapshot.error);
+              }
 
-        final assignments = snapshot.data ?? [];
-        if (assignments.isEmpty) {
-          return _buildEmptyState(context);
-        }
+              final assignments = snapshot.data ?? [];
+              final filteredAssignments = _filterAssignments(assignments, _searchTerm);
+              
+              if (assignments.isEmpty) {
+                return _buildEmptyState(context);
+              }
+              
+              if (filteredAssignments.isEmpty) {
+                return _buildNoSearchResultsState(context);
+              }
 
-        // Group assignments by timeframe
-        final overdue = <Assignment>[];
-        final dueSoon = <Assignment>[];
-        final upcoming = <Assignment>[];
-        final later = <Assignment>[];
+              // Group assignments by timeframe
+              final overdue = <Assignment>[];
+              final dueSoon = <Assignment>[];
+              final upcoming = <Assignment>[];
+              final later = <Assignment>[];
 
-        final now = DateTime.now();
-        for (final assignment in assignments) {
-          if (assignment.dueDate.isBefore(now)) {
-            overdue.add(assignment);
-          } else if (assignment.dueDate.difference(now).inDays <= 3) {
-            dueSoon.add(assignment);
-          } else if (assignment.dueDate.difference(now).inDays <= 7) {
-            upcoming.add(assignment);
-          } else {
-            later.add(assignment);
-          }
-        }
+              final now = DateTime.now();
+              for (final assignment in filteredAssignments) {
+                if (assignment.dueDate.isBefore(now)) {
+                  overdue.add(assignment);
+                } else if (assignment.dueDate.difference(now).inDays <= 3) {
+                  dueSoon.add(assignment);
+                } else if (assignment.dueDate.difference(now).inDays <= 7) {
+                  upcoming.add(assignment);
+                } else {
+                  later.add(assignment);
+                }
+              }
 
-        return _buildAssignmentsListView(
-          context,
-          overdue: overdue,
-          dueSoon: dueSoon,
-          upcoming: upcoming,
-          later: later,
-        );
-      },
+              return _buildAssignmentsListView(
+                context,
+                overdue: overdue,
+                dueSoon: dueSoon,
+                upcoming: upcoming,
+                later: later,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildErrorWidget(BuildContext context, Object? error) {
+  Widget _buildNoSearchResultsState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 56,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No matches found',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try a different search term',
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () {
+              _searchController.clear();
+              setState(() => _searchTerm = '');
+            },
+            icon: const Icon(Icons.clear),
+            label: const Text('Clear Search'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(Object? error) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -100,13 +215,13 @@ class HomeScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.check_circle_outline,
+            Icons.assignment_outlined,
             size: 56,
             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
           ),
           const SizedBox(height: 16),
           Text(
-            'No assignments due',
+            'No assignments yet',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w500,
@@ -116,7 +231,7 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'When you create assignments, they will appear here',
+            'Join a group to start tracking assignments',
             style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -127,6 +242,8 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  // ...existing error and empty state widgets...
 
   Widget _buildAssignmentsListView(
     BuildContext context, {
@@ -179,50 +296,27 @@ class HomeScreen extends StatelessWidget {
           ),
           ...later.map((assignment) => _buildAssignmentTile(context, assignment)),
         ],
+        
+        // Add information about search results if searching
+        if (_searchTerm.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Showing ${overdue.length + dueSoon.length + upcoming.length + later.length} results for "$_searchTerm"',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildSectionHeader(
-    BuildContext context, {
-    required String title,
-    required int count,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: color,
-                  letterSpacing: 0.25,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$count ${count == 1 ? 'item' : 'items'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor.withOpacity(0.2)),
-        ],
-      ),
-    );
-  }
+  // ...existing _buildSectionHeader widget...
 
   Widget _buildAssignmentTile(BuildContext context, Assignment assignment) {
     final now = DateTime.now();
@@ -251,17 +345,35 @@ class HomeScreen extends StatelessWidget {
       statusIcon = Icons.hourglass_empty;
     }
     
+    // Highlight search term if present
+    Widget titleWidget;
+    Widget classNameWidget;
+    
+    if (_searchTerm.isNotEmpty) {
+      titleWidget = _highlightSearchText(assignment.name, _searchTerm);
+      classNameWidget = _highlightSearchText(assignment.className, _searchTerm);
+    } else {
+      titleWidget = Text(
+        assignment.name,
+        style: TextStyle(
+          fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
+          fontSize: 15,
+        ),
+      );
+      classNameWidget = Text(
+        assignment.className,
+        style: TextStyle(
+          fontSize: 13,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    
     return Column(
       children: [
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-          title: Text(
-            assignment.name,
-            style: TextStyle(
-              fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
-              fontSize: 15,
-            ),
-          ),
+          title: titleWidget,
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Column(
@@ -269,13 +381,7 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      assignment.className,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    Expanded(child: classNameWidget),
                     const SizedBox(width: 8),
                     Container(
                       width: 4,
@@ -299,7 +405,7 @@ class HomeScreen extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      statusIcon, // Use the status-specific icon
+                      statusIcon,
                       size: 14,
                       color: statusColor,
                     ),
@@ -326,7 +432,7 @@ class HomeScreen extends StatelessWidget {
               border: Border.all(color: statusColor.withOpacity(0.3)),
             ),
             child: Icon(
-              statusIcon, // Use the status-specific icon
+              statusIcon,
               size: 18,
               color: statusColor,
             ),
@@ -343,12 +449,151 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Helper to get group name - in real app, this would fetch from a cache or service
-  String _getGroupNameFromId(String groupId) {
-    // This would be replaced with actual group name lookup
-    if (groupId.length > 5) {
-      return groupId.substring(0, 5);
+  // Helper widget to highlight search text
+  Widget _highlightSearchText(String text, String query) {
+    if (query.isEmpty) {
+      return Text(text);
     }
-    return groupId;
+    
+    final lowercaseText = text.toLowerCase();
+    final lowercaseQuery = query.toLowerCase();
+    
+    if (!lowercaseText.contains(lowercaseQuery)) {
+      return Text(text);
+    }
+    
+    final matches = <Match>[];
+    int start = 0;
+    while (true) {
+      final matchIndex = lowercaseText.indexOf(lowercaseQuery, start);
+      if (matchIndex == -1) break;
+      matches.add(Match(matchIndex, matchIndex + query.length));
+      start = matchIndex + query.length;
+    }
+    
+    if (matches.isEmpty) {
+      return Text(text);
+    }
+    
+    final spans = <TextSpan>[];
+    int currentIndex = 0;
+    
+    for (final match in matches) {
+      if (currentIndex < match.start) {
+        spans.add(TextSpan(text: text.substring(currentIndex, match.start)));
+      }
+      
+      spans.add(TextSpan(
+        text: text.substring(match.start, match.end),
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          backgroundColor: Color(0x33FFEB3B),
+        ),
+      ));
+      
+      currentIndex = match.end;
+    }
+    
+    if (currentIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(currentIndex)));
+    }
+    
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: currentIndex == 0 ? 15 : 13,
+          color: currentIndex == 0 
+              ? Theme.of(context).colorScheme.onSurface
+              : Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        children: spans,
+      ),
+    );
   }
+
+  // ...existing helper methods...
+
+  // Add this method to get group name
+  String _getGroupNameFromId(String groupId) {
+    return _groupNameCache[groupId] ?? 'Loading...';
+  }
+
+  // Add this method to fetch and cache group names
+  Future<void> _fetchGroupName(String groupId) async {
+    if (_groupNameCache.containsKey(groupId)) return;
+    
+    try {
+      final groupName = await _groupService.getGroupName(groupId);
+      if (mounted) {
+        setState(() {
+          _groupNameCache[groupId] = groupName;
+        });
+      }
+    } catch (e) {
+      print('Error fetching group name: $e');
+      if (mounted) {
+        setState(() {
+          _groupNameCache[groupId] = 'Error';
+        });
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch group names when assignments are loaded
+    if (_authService.currentUser != null) {
+      _assignmentService.getUserAssignments(_authService.currentUser!.uid)
+        .listen((assignments) {
+          for (var assignment in assignments) {
+            _fetchGroupName(assignment.groupId);
+          }
+        });
+    }
+  }
+}
+
+// Helper class for text highlighting
+class Match {
+  final int start;
+  final int end;
+  
+  Match(this.start, this.end);
+}
+
+// Add this method to your _HomeScreenState class
+Widget _buildSectionHeader(
+  BuildContext context, {
+  required String title,
+  required int count,
+  required IconData icon,
+  required Color color,
+}) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+    child: Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: color,
+            letterSpacing: 0.25,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          '$count ${count == 1 ? 'item' : 'items'}',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    ),
+  );
 }
