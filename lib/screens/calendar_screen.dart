@@ -5,6 +5,9 @@ import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
 import '../utils/date_utils.dart' as app_date_utils;
 import 'package:animations/animations.dart';
+import 'assignment_details_screen.dart';
+import '../widgets/embedded_tasks_list.dart';
+import '../services/task_service.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -16,6 +19,7 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   final AssignmentService _assignmentService = AssignmentService();
   final AuthService _authService = AuthService();
+  final TaskService _taskService = TaskService();
   
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
@@ -358,100 +362,153 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget _buildAssignmentsList() {
-    // Get current day assignments with proper date normalization
     final normalizedSelectedDay = DateTime(
       _selectedDay.year,
       _selectedDay.month,
       _selectedDay.day,
     );
     
-    final selectedDayAssignments = _assignments[normalizedSelectedDay] ?? [];
-    
-    // Separate overdue from upcoming
     final now = DateTime.now();
-    final normalizedNow = DateTime(now.year, now.month, now.day);
-    final overdue = <Assignment>[];
-    final dueToday = <Assignment>[];
-
-    for (final assignment in selectedDayAssignments) {
-      final normalizedDueDate = DateTime(
-        assignment.dueDate.year,
-        assignment.dueDate.month,
-        assignment.dueDate.day,
-      );
-      
-      if (normalizedDueDate.isBefore(normalizedNow)) {
-        overdue.add(assignment);
-      } else if (normalizedDueDate.isAtSameMomentAs(normalizedNow)) {
-        dueToday.add(assignment);
-      }
+    final normalizedToday = DateTime(now.year, now.month, now.day);
+    final isToday = normalizedSelectedDay.isAtSameMomentAs(normalizedToday);
+    
+    final user = _authService.currentUser;
+    if (user == null) {
+      return const SizedBox();
     }
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: Column(
-        key: ValueKey<DateTime>(_selectedDay),
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (overdue.isNotEmpty) ...[
-            _buildSectionHeader('Overdue', Icons.warning_rounded, Colors.red, overdue.length),
-            ...overdue.map((a) => _buildMinimalistAssignmentTile(a)),
-            const Divider(height: 32),
-          ],
-          if (dueToday.isNotEmpty) ...[
-            _buildSectionHeader('Due Today', Icons.event, Theme.of(context).colorScheme.primary, dueToday.length),
-            ...dueToday.map((a) => _buildMinimalistAssignmentTile(a)),
-          ],
-          if (overdue.isEmpty && dueToday.isEmpty)
-            Expanded(
-              child: Center(
-                child: Text(
-                  'No assignments due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+    return StreamBuilder<List<Assignment>>(
+      stream: _assignmentService.getAllUserAssignments(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (isToday) {
+          // Show categories for today's view
+          // Get assignments for selected day
+          final selectedDayAssignments = snapshot.data!.where((assignment) {
+            final assignmentDate = DateTime(
+              assignment.dueDate.year,
+              assignment.dueDate.month,
+              assignment.dueDate.day,
+            );
+            return assignmentDate.isAtSameMomentAs(normalizedSelectedDay);
+          }).toList();
+
+          // Get upcoming assignments within a week
+          final weekFromNow = now.add(const Duration(days: 7));
+          final upcomingAssignments = snapshot.data!.where((assignment) {
+            if (assignment.dueDate.isBefore(now)) return false;
+            
+            final assignmentDate = DateTime(
+              assignment.dueDate.year,
+              assignment.dueDate.month,
+              assignment.dueDate.day,
+            );
+            
+            return assignment.dueDate.isBefore(weekFromNow) && 
+                   !assignmentDate.isAtSameMomentAs(normalizedSelectedDay);
+          }).toList();
+
+          // Categorize assignments
+          final overdue = <Assignment>[];
+          final dueToday = <Assignment>[];
+          final dueSoon = <Assignment>[];
+          final dueThisWeek = <Assignment>[];
+
+          // Sort selected day assignments
+          for (final assignment in selectedDayAssignments) {
+            if (assignment.dueDate.isBefore(now)) {
+              overdue.add(assignment);
+            } else {
+              dueToday.add(assignment);
+            }
+          }
+
+          // Sort upcoming assignments
+          for (final assignment in upcomingAssignments) {
+            final daysUntilDue = assignment.dueDate.difference(now).inDays;
+            if (daysUntilDue <= 3) {
+              dueSoon.add(assignment);
+            } else {
+              dueThisWeek.add(assignment);
+            }
+          }
+
+          if (selectedDayAssignments.isEmpty && upcomingAssignments.isEmpty) {
+            return Center(
+              child: Text(
+                'No assignments due today or in the upcoming week',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
+                textAlign: TextAlign.center,
               ),
-            ),
-        ],
-      ),
-    );
-  }
+            );
+          }
 
-  Widget _buildSectionHeader(String title, IconData icon, Color color, int count) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: color,
-              letterSpacing: 0.25,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            '$count ${count == 1 ? 'item' : 'items'}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          return ListView(
+            children: [
+              if (overdue.isNotEmpty) ...[
+                _buildSectionHeader('Overdue', Icons.warning_rounded, Colors.red, overdue.length),
+                ...overdue.map((a) => _buildMinimalistAssignmentTile(a)),
+              ],
+              if (dueToday.isNotEmpty) ...[
+                _buildSectionHeader('Due Today', Icons.event, Theme.of(context).colorScheme.primary, dueToday.length),
+                ...dueToday.map((a) => _buildMinimalistAssignmentTile(a)),
+              ],
+              if (dueSoon.isNotEmpty) ...[
+                _buildSectionHeader('Due Soon', Icons.upcoming, Colors.red, dueSoon.length),
+                ...dueSoon.map((a) => _buildMinimalistAssignmentTile(a)),
+              ],
+              if (dueThisWeek.isNotEmpty) ...[
+                _buildSectionHeader('Later This Week', Icons.date_range, Colors.orange, dueThisWeek.length),
+                ...dueThisWeek.map((a) => _buildMinimalistAssignmentTile(a)),
+              ],
+            ],
+          );
+        } else {
+          // Show only assignments for the selected day
+          final selectedDayAssignments = snapshot.data!.where((assignment) {
+            final assignmentDate = DateTime(
+              assignment.dueDate.year,
+              assignment.dueDate.month,
+              assignment.dueDate.day,
+            );
+            return assignmentDate.isAtSameMomentAs(normalizedSelectedDay);
+          }).toList();
 
-  // Add helper method to check if a day has overdue assignments
-  bool _isOverdue(DateTime day) {
-    final assignments = _assignments[day] ?? [];
-    final now = DateTime.now();
-    return assignments.any((a) => a.dueDate.isBefore(now));
+          if (selectedDayAssignments.isEmpty) {
+            return Center(
+              child: Text(
+                'No assignments due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
+          return ListView(
+            children: [
+              _buildSectionHeader(
+                'Due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}', 
+                Icons.event, 
+                Theme.of(context).colorScheme.primary, 
+                selectedDayAssignments.length
+              ),
+              ...selectedDayAssignments.map((a) => _buildMinimalistAssignmentTile(a)),
+            ],
+          );
+        }
+      },
+    );
   }
 
   Widget _buildUpcomingAssignments() {
@@ -609,57 +666,74 @@ class _CalendarScreenState extends State<CalendarScreen> {
       statusIcon = Icons.hourglass_empty;
     }
     
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-        title: Text(
-          assignment.name,
-          style: TextStyle(
-            fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-            fontSize: 15,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                assignment.className,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+    return Column(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: Text(
+              assignment.name,
+              style: TextStyle(
+                fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                fontSize: 15,
               ),
-              const SizedBox(height: 2),
-              Text(
-                app_date_utils.getDueInDays(assignment.dueDate),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: statusColor,
-                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    assignment.className,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    app_date_utils.getDueInDays(assignment.dueDate),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: statusColor,
+                      fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: statusColor.withOpacity(0.3)),
+              ),
+              child: Icon(
+                statusIcon, // Use our new status-specific icon
+                size: 18,
+                color: statusColor,
+              ),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AssignmentDetailsScreen(assignment: assignment),
+                ),
+              );
+            },
           ),
         ),
-        leading: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: statusColor.withOpacity(0.3)),
-          ),
-          child: Icon(
-            statusIcon, // Use our new status-specific icon
-            size: 18,
-            color: statusColor,
-          ),
+        EmbeddedTasksList(
+          assignmentId: assignment.id,
+          userId: _authService.currentUser?.uid ?? '',
+          taskService: _taskService,
         ),
-      ),
+      ],
     );
   }
 
@@ -669,5 +743,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return monthNames[month];
+  }
+
+  // Add this method inside _CalendarScreenState class
+  Widget _buildSectionHeader(String title, IconData icon, Color color, int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: color,
+                  letterSpacing: 0.25,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$count ${count == 1 ? 'item' : 'items'}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: Theme.of(context).dividerColor.withOpacity(0.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isOverdue(DateTime date) {
+    final now = DateTime.now();
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final normalizedNow = DateTime(now.year, now.month, now.day);
+    return normalizedDate.isBefore(normalizedNow);
   }
 }
