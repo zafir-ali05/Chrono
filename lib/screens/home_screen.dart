@@ -53,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Column(
       children: [
-        // Search bar
+        // Search bar with removed outline
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Container(
@@ -77,6 +77,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       )
                     : null,
                 border: InputBorder.none,
+                focusedBorder: InputBorder.none, // Remove purple outline when focused
+                enabledBorder: InputBorder.none, // Remove outline when not focused
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
               style: const TextStyle(fontSize: 15),
@@ -397,13 +399,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'Classroom: ${_getGroupNameFromId(assignment.groupId)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    // Text(
+                    //   'Classroom: ${_getGroupNameFromId(assignment.groupId)}',
+                    //   style: TextStyle(
+                    //     fontSize: 13,
+                    //     color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    //   ),
+                    // ),
                   ],
                 ),
                 const SizedBox(height: 4),

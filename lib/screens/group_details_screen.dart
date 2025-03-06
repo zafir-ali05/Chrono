@@ -12,6 +12,8 @@ import 'group_settings_screen.dart';
 import 'assignment_details_screen.dart';
 import '../widgets/embedded_tasks_list.dart';
 import '../services/task_service.dart';
+import '../widgets/group_chat_widget.dart';
+
 
 class GroupDetailsScreen extends StatefulWidget {
   final Group group;
@@ -31,25 +33,42 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
   final TextEditingController _messageController = TextEditingController();
   
   late AnimationController _animationController;
-  late Animation<double> _animation;
-  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fabRotationAnimation;
+  final _fabKey = GlobalKey();
   bool _isChatVisible = false;
-  
+
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
     
-    _animation = CurvedAnimation(
+    _fadeAnimation = CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeOutBack,
-      reverseCurve: Curves.easeInBack,
+      curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
+      reverseCurve: const Interval(0.2, 1.0, curve: Curves.easeIn),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animation);
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: const Offset(0, 0),
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+      reverseCurve: const Interval(0.0, 0.8, curve: Curves.easeInCubic),
+    ));
+
+    _fabRotationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 0.5,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
   }
 
   @override
@@ -77,18 +96,23 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
           if (_isChatVisible) _buildChatBox(),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Chat button
-          FloatingActionButton.small(
-            heroTag: 'chatButton',
-            onPressed: _toggleChat,
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            child: Icon(_isChatVisible ? Icons.close : Icons.chat_bubble_outline),
+          Padding(
+            padding: const EdgeInsets.only(left: 32.0),
+            child: FloatingActionButton.small(
+              key: _fabKey,
+              heroTag: 'chatButton',
+              onPressed: _toggleChat,
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              child: RotationTransition(
+                turns: _fabRotationAnimation,
+                child: const Icon(Icons.close),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          // Add assignment button
+          const SizedBox(width: 16),
           FloatingActionButton(
             heroTag: 'addButton',
             onPressed: () => _showAddAssignmentDialog(context),
@@ -380,239 +404,84 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
   // ...existing code...
 
   void _toggleChat() {
-    setState(() {
-      if (_isChatVisible) {
-        _animationController.reverse().then((_) {
-          setState(() => _isChatVisible = false);
-        });
-      } else {
-        _isChatVisible = true;
-        _animationController.forward();
-      }
-    });
+    if (_isChatVisible) {
+      _animationController.reverse().then((_) {
+        if (mounted) setState(() => _isChatVisible = false);
+      });
+    } else {
+      setState(() => _isChatVisible = true);
+      _animationController.forward();
+    }
   }
 
   Widget _buildChatBox() {
     final screenWidth = MediaQuery.of(context).size.width;
-    final chatBoxWidth = screenWidth * 0.9;
-    final chatBoxHeight = 400.0;
-    
+    final screenHeight = MediaQuery.of(context).size.height;
+    final chatBoxWidth = screenWidth * 0.92;
+    // Set a fixed height that won't be affected by keyboard
+    final chatBoxHeight = screenHeight * 0.6;
+
+    // Fixed bottom position that won't change with keyboard
+    const bottomPosition = 90.0;
+
     return AnimatedBuilder(
-      animation: _animation,
+      animation: _animationController,
       builder: (context, child) {
-        double scale = _scaleAnimation.value;
-        
-        return Positioned(
-          right: (screenWidth - chatBoxWidth) / 2,
-          bottom: 100,
-          child: Transform.scale(
-            scale: scale,
-            alignment: Alignment.bottomCenter,
-            child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(16),
-              clipBehavior: Clip.antiAlias,
-              child: Container(
-                width: chatBoxWidth,
-                height: chatBoxHeight,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    // Chat header
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.chat_bubble_outline, size: 18),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Group Chat',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.close, size: 20),
-                            onPressed: _toggleChat,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Chat messages
-                    Expanded(
-                      child: _buildChatMessages(),
-                    ),
-                    
-                    // Message input
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              decoration: InputDecoration(
-                                hintText: 'Type a message...',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(
-                                    color: Theme.of(context).dividerColor,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                              ),
-                              onSubmitted: (_) => _sendMessage(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.secondary,
-                            child: IconButton(
-                              icon: const Icon(Icons.send, color: Colors.white, size: 18),
-                              onPressed: _sendMessage,
-                              splashRadius: 20,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildChatMessages() {
-    return StreamBuilder<List<Message>>(
-      stream: _chatService.getMessages(widget.group.id),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error loading messages',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final messages = snapshot.data!;
-        if (messages.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline,
-                  size: 48,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No messages yet',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Start the conversation!',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          reverse: true,
-          padding: const EdgeInsets.all(16),
-          itemCount: messages.length,
-          itemBuilder: (context, index) {
-            final message = messages[index];
-            final isMe = message.senderId == _authService.currentUser?.uid;
-            return _buildMessageBubble(message, isMe);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildMessageBubble(Message message, bool isMe) {
-    final bubbleColor = isMe
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.surfaceVariant;
-    
-    final textColor = isMe
-        ? Theme.of(context).colorScheme.onPrimary
-        : Theme.of(context).colorScheme.onSurface;
-    
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        return Stack(
           children: [
-            if (!isMe)
-              Text(
-                message.senderName,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: textColor.withOpacity(0.7),
+            // Backdrop
+            if (_fadeAnimation.value > 0)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: _toggleChat,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.3 * _fadeAnimation.value),
+                  ),
                 ),
               ),
-            Text(
-              message.content,
-              style: TextStyle(
-                color: textColor,
+            
+            // Chat box - positioned with fixed bottom distance
+            Positioned(
+              left: 16,
+              bottom: bottomPosition,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.3),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: _animationController,
+                    curve: Curves.easeOutCubic,
+                  )),
+                  child: Container(
+                    width: chatBoxWidth,
+                    height: chatBoxHeight,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: GroupChatWidget(
+                      groupId: widget.group.id,
+                      groupName: widget.group.name,
+                      onClose: _toggleChat,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
-  }
-
-  void _sendMessage() {
-    final messageText = _messageController.text.trim();
-    if (messageText.isNotEmpty) {
-      _chatService.sendMessage(
-        widget.group.id,
-        _authService.currentUser?.uid ?? 'unknown',  // Null-safe with fallback
-        _authService.currentUser?.displayName ?? 'Anonymous',
-        messageText,
-      );
-      _messageController.clear();
-    }
   }
 
   void _showGroupOptions() {

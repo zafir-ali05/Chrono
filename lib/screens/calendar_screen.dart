@@ -343,6 +343,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         markerBuilder: (context, date, events) {
           if (events.isEmpty) return null;
           
+          // Don't show dot marker if this day is currently selected or is today
+          if (isSameDay(date, _selectedDay) || isSameDay(date, DateTime.now())) return null;
+          
           return Positioned(
             bottom: 1,
             child: Container(
