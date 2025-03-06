@@ -3,31 +3,45 @@ import '../models/assignment.dart';
 import '../services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:rxdart/rxdart.dart';
 
 class AssignmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Add cache for assignments
+  final Map<String, List<Assignment>> _assignmentsCache = {};
 
   Stream<List<Assignment>> getGroupAssignments(String groupId) {
-    print("Fetching assignments for group: $groupId"); // Debug print
+    // First emit cached data if available
+    List<Assignment>? cachedAssignments = _assignmentsCache[groupId];
+    
     return _firestore
         .collection('groups')
         .doc(groupId)
         .collection('assignments')
         .snapshots()
         .map((snapshot) {
-          print("Number of assignments found: ${snapshot.docs.length}"); // Debug print
-          return snapshot.docs.map((doc) {
-            print("Assignment data: ${doc.data()}"); // Debug print
+          final assignments = snapshot.docs.map((doc) {
             return Assignment.fromMap(
               doc.data(),
               id: doc.id,
               groupId: groupId,
             );
           }).toList();
-        });
+          
+          // Update cache
+          _assignmentsCache[groupId] = assignments;
+          
+          return assignments;
+        }).startWith(cachedAssignments ?? []);  // Emit cached data first
   }
 
+  // Update the getUserAssignments method to use the same optimized approach
   Stream<List<Assignment>> getUserAssignments(String userId) {
+    // Redirect to getAllUserAssignments for consistency
+    return getAllUserAssignments(userId);
+  }
+
+  Stream<List<Assignment>> getUserAssignmentsOld(String userId) {
     print("Fetching assignments for user: $userId");
     return _firestore
         .collection('groups')
@@ -96,6 +110,22 @@ class AssignmentService {
 
       print("Assignment created with ID: ${doc.id}");
 
+      // Update cache immediately
+      final newAssignment = Assignment(
+        id: doc.id,
+        groupId: groupId,
+        className: className,
+        name: name,
+        dueDate: dueDate,
+        creatorId: creatorId,
+        createdAt: DateTime.now(),
+      );
+      
+      _assignmentsCache[groupId] = [
+        ...(_assignmentsCache[groupId] ?? []),
+        newAssignment,
+      ];
+
       // Get group name for notification
       final groupDoc = await _firestore.collection('groups').doc(groupId).get();
       final groupName = groupDoc.data()?['name'];
@@ -153,32 +183,37 @@ class AssignmentService {
         .collection('groups')
         .where('members', arrayContains: userId)
         .snapshots()
-        .asyncMap((groupSnapshot) async {
-          List<Assignment> allAssignments = [];
-          
-          for (var groupDoc in groupSnapshot.docs) {
+        .switchMap((groupSnapshot) {
+          final streams = groupSnapshot.docs.map((groupDoc) {
             final groupId = groupDoc.id;
-            
-            final assignmentsSnapshot = await _firestore
+            return _firestore
                 .collection('groups')
                 .doc(groupId)
                 .collection('assignments')
-                .get();
-            
-            final groupAssignments = assignmentsSnapshot.docs.map((doc) {
-              return Assignment.fromMap(
-                doc.data(),
-                id: doc.id,
-                groupId: groupId,
-              );
-            }).toList();
-            
-            allAssignments.addAll(groupAssignments);
-          }
+                .snapshots()
+                .map((assignmentSnapshot) {
+                  final assignments = assignmentSnapshot.docs.map((doc) {
+                    return Assignment.fromMap(
+                      doc.data(),
+                      id: doc.id,
+                      groupId: groupId,
+                    );
+                  }).toList();
+                  
+                  // Update cache for this group
+                  _assignmentsCache[groupId] = assignments;
+                  
+                  return assignments;
+                });
+          });
           
-          // Sort assignments by due date
-          allAssignments.sort((a, b) => a.dueDate.compareTo(b.dueDate));
-          return allAssignments;
+          // Combine all streams into one
+          return streams.isEmpty 
+              ? Stream.value(<Assignment>[]) 
+              : Rx.combineLatestList(streams).map((lists) => 
+                  lists.expand((list) => list).toList()
+                    ..sort((a, b) => a.dueDate.compareTo(b.dueDate))
+                );
         });
   }
 

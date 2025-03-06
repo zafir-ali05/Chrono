@@ -3,7 +3,10 @@ import '../models/assignment.dart';
 import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
 import '../utils/date_utils.dart' as app_date_utils;
-import '../services/group_service.dart'; // Add this line at the top with other imports
+import '../services/group_service.dart'; 
+import 'assignment_details_screen.dart';
+import '../widgets/embedded_tasks_list.dart';
+import '../services/task_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final AssignmentService _assignmentService = AssignmentService();
   final AuthService _authService = AuthService();
   final GroupService _groupService = GroupService(); // Add this line at the top with other services
+  final TaskService _taskService = TaskService();
   final TextEditingController _searchController = TextEditingController();
   final Map<String, String> _groupNameCache = {}; // Add cache to store group names
   String _searchTerm = '';
@@ -80,10 +84,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         
-        // Stream of assignments
+        // Stream of assignments - Updated to use getAllUserAssignments
         Expanded(
           child: StreamBuilder<List<Assignment>>(
-            stream: _assignmentService.getUserAssignments(user.uid),
+            // Change this line to use getAllUserAssignments instead of getUserAssignments
+            stream: _assignmentService.getAllUserAssignments(user.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -393,7 +398,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Group: ${_getGroupNameFromId(assignment.groupId)}',
+                      'Classroom: ${_getGroupNameFromId(assignment.groupId)}',
                       style: TextStyle(
                         fontSize: 13,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -437,6 +442,20 @@ class _HomeScreenState extends State<HomeScreen> {
               color: statusColor,
             ),
           ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AssignmentDetailsScreen(assignment: assignment),
+              ),
+            );
+          },
+        ),
+        // Add embedded tasks list after the ListTile
+        EmbeddedTasksList(
+          assignmentId: assignment.id,
+          userId: _authService.currentUser?.uid ?? '',
+          taskService: _taskService,
         ),
         Padding(
           padding: const EdgeInsets.only(left: 72, right: 16),

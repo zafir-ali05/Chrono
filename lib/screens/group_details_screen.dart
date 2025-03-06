@@ -8,7 +8,10 @@ import '../services/group_service.dart';
 import '../utils/date_utils.dart';
 import '../services/chat_service.dart';
 import '../models/message.dart';
-import 'group_settings_screen.dart';  // Add this import
+import 'group_settings_screen.dart'; 
+import 'assignment_details_screen.dart';
+import '../widgets/embedded_tasks_list.dart';
+import '../services/task_service.dart';
 
 class GroupDetailsScreen extends StatefulWidget {
   final Group group;
@@ -24,6 +27,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
   final AuthService _authService = AuthService();
   final GroupService _groupService = GroupService();
   final ChatService _chatService = ChatService();
+  final TaskService _taskService = TaskService();
   final TextEditingController _messageController = TextEditingController();
   
   late AnimationController _animationController;
@@ -347,6 +351,19 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
             onPressed: () => _showAssignmentOptions(assignment),
             splashRadius: 24,
           ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AssignmentDetailsScreen(assignment: assignment),
+              ),
+            );
+          },
+        ),
+        EmbeddedTasksList(
+          assignmentId: assignment.id,
+          userId: _authService.currentUser?.uid ?? '',
+          taskService: _taskService,
         ),
         Padding(
           padding: const EdgeInsets.only(left: 72, right: 16),
