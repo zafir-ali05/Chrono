@@ -93,12 +93,15 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
       body: Stack(
         children: [
           _buildMainContent(),
-          if (_isChatVisible) _buildChatBox(),
+          // Comment out chat visibility
+          // if (_isChatVisible) _buildChatBox(),
         ],
       ),
       floatingActionButton: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          // Comment out the chat button
+          /*
           Padding(
             padding: const EdgeInsets.only(left: 32.0),
             child: FloatingActionButton.small(
@@ -113,6 +116,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
             ),
           ),
           const SizedBox(width: 16),
+          */
           FloatingActionButton(
             heroTag: 'addButton',
             onPressed: () => _showAddAssignmentDialog(context),
@@ -245,164 +249,255 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
       padding: const EdgeInsets.only(bottom: 100), // Make room for FABs
       children: [
         if (overdue.isNotEmpty) ...[
-          _buildSectionHeader('Overdue', overdue.length, Colors.red, Icons.warning_rounded),
-          ...overdue.map((a) => _buildAssignmentTile(a)),
+          _buildEnhancedSectionHeader('Overdue', overdue.length, Colors.red, Icons.warning_rounded),
+          ...overdue.map((a) => _buildEnhancedAssignmentTile(a)),
         ],
         if (dueSoon.isNotEmpty) ...[
-          _buildSectionHeader('Due Soon', dueSoon.length, Colors.orange, Icons.hourglass_bottom),
-          ...dueSoon.map((a) => _buildAssignmentTile(a)),
+          _buildEnhancedSectionHeader('Due Soon', dueSoon.length, Colors.orange, Icons.hourglass_bottom_rounded),
+          ...dueSoon.map((a) => _buildEnhancedAssignmentTile(a)),
         ],
         if (upcoming.isNotEmpty) ...[
-          _buildSectionHeader('Upcoming', upcoming.length, Theme.of(context).colorScheme.primary, Icons.event),
-          ...upcoming.map((a) => _buildAssignmentTile(a)),
+          _buildEnhancedSectionHeader('Upcoming', upcoming.length, Theme.of(context).colorScheme.primary, Icons.event_rounded),
+          ...upcoming.map((a) => _buildEnhancedAssignmentTile(a)),
         ],
       ],
     );
   }
   
-  Widget _buildSectionHeader(String title, int count, Color color, IconData icon) {
+  Widget _buildEnhancedSectionHeader(String title, int count, Color color, IconData icon) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: color,
-                  letterSpacing: 0.25,
-                ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.15),
+              color.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
               ),
-              const Spacer(),
-              Text(
+              child: Icon(icon, size: 14, color: color),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.25,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
                 '$count ${count == 1 ? 'item' : 'items'}',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                  color: color,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Divider(height: 1, thickness: 1, color: Theme.of(context).dividerColor.withOpacity(0.2)),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
   
-  Widget _buildAssignmentTile(Assignment assignment) {
+  Widget _buildEnhancedAssignmentTile(Assignment assignment) {
     final bool isOverdue = assignment.dueDate.isBefore(DateTime.now());
-    final bool isDueSoon = assignment.dueDate.difference(DateTime.now()).inDays <= 3;
+    final int daysUntilDue = assignment.dueDate.difference(DateTime.now()).inDays;
     
-    final Color statusColor = isOverdue 
-        ? Colors.red 
-        : isDueSoon 
-            ? Colors.orange 
-            : Theme.of(context).colorScheme.primary;
+    // Enhanced status indicators with gradients
+    final Color statusColor;
+    final IconData statusIcon;
+    final LinearGradient statusGradient;
     
-    final IconData statusIcon = isOverdue 
-        ? Icons.warning_rounded
-        : isDueSoon
-            ? Icons.hourglass_bottom
-            : Icons.event;
+    if (isOverdue) {
+      statusColor = Colors.red;
+      statusIcon = Icons.warning_rounded;
+      statusGradient = LinearGradient(
+        colors: [Colors.red.shade300, Colors.red.shade600],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (daysUntilDue <= 3) {
+      statusColor = Colors.orange;
+      statusIcon = Icons.hourglass_bottom_rounded;
+      statusGradient = LinearGradient(
+        colors: [Colors.orange.shade300, Colors.orange.shade500],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else {
+      statusColor = Theme.of(context).colorScheme.primary;
+      statusIcon = Icons.event_rounded;
+      statusGradient = LinearGradient(
+        colors: [
+          Theme.of(context).colorScheme.primary.withOpacity(0.7),
+          Theme.of(context).colorScheme.primary,
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    }
     
-    return Column(
-      children: [
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          title: Text(
-            assignment.name,
-            style: TextStyle(
-              fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
-              fontSize: 15,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Theme.of(context).colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  assignment.className,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ],
+        ),
+        margin: const EdgeInsets.only(bottom: 4),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AssignmentDetailsScreen(assignment: assignment),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  title: Text(
+                    assignment.name,
+                    style: TextStyle(
+                      fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                      fontSize: 15,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          assignment.className,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: statusGradient,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: statusColor.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                statusIcon,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                getDueInDays(assignment.dueDate),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  leading: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: statusGradient,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: statusColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      statusIcon,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.more_vert_rounded, size: 20),
+                    onPressed: () => _showAssignmentOptions(assignment),
+                    splashRadius: 24,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(
-                      statusIcon,
-                      size: 14,
-                      color: statusColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      getDueInDays(assignment.dueDate),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: statusColor,
-                        fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          leading: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
-            ),
-            child: Icon(
-              statusIcon,
-              size: 18,
-              color: statusColor,
-            ),
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onPressed: () => _showAssignmentOptions(assignment),
-            splashRadius: 24,
-          ),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AssignmentDetailsScreen(assignment: assignment),
               ),
-            );
-          },
+            ),
+            EmbeddedTasksList(
+              assignmentId: assignment.id,
+              userId: _authService.currentUser?.uid ?? '',
+              taskService: _taskService,
+            ),
+          ],
         ),
-        EmbeddedTasksList(
-          assignmentId: assignment.id,
-          userId: _authService.currentUser?.uid ?? '',
-          taskService: _taskService,
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 72, right: 16),
-          child: Divider(
-            height: 1,
-            color: Theme.of(context).dividerColor.withOpacity(0.2),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
   // Additional methods for group and assignment operations
   // ...existing code...
 
+  // Comment out _toggleChat method
+  /*
   void _toggleChat() {
     if (_isChatVisible) {
       _animationController.reverse().then((_) {
@@ -413,7 +508,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
       _animationController.forward();
     }
   }
+  */
 
+  // Comment out _buildChatBox method
+  /*
   Widget _buildChatBox() {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
@@ -483,6 +581,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
       },
     );
   }
+  */
 
   void _showGroupOptions() {
     Navigator.push(

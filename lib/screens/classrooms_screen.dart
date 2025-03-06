@@ -166,51 +166,95 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
       );
     }
 
-    return Scaffold(
-      body: StreamBuilder<List<Group>>(
-        stream: _groupService.getUserGroups(user.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return _buildErrorWidget(context, snapshot.error);
-          }
-
-          final groups = snapshot.data ?? [];
-          if (groups.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return _buildGroupList(groups);
-        },
+    // Apply gradient background like other screens
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surface.withOpacity(0.95),
+          ],
+        ),
       ),
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        overlayColor: Colors.black,
-        overlayOpacity: 0.4,
-        spacing: 12,
-        spaceBetweenChildren: 12,
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.group_add),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            label: 'Create Classroom',
-            onTap: _showCreateGroupDialog,
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Make scaffold transparent to show gradient
+        body: StreamBuilder<List<Group>>(
+          stream: _groupService.getUserGroups(user.uid),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: CircularProgressIndicator(
+                  // Customized progress indicator matching home screen
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return _buildErrorWidget(context, snapshot.error);
+            }
+
+            final groups = snapshot.data ?? [];
+            if (groups.isEmpty) {
+              return _buildEmptyState();
+            }
+
+            return _buildGroupList(groups);
+          },
+        ),
+        floatingActionButton: SpeedDial(
+          icon: Icons.add,
+          activeIcon: Icons.close,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+          overlayColor: Colors.black,
+          overlayOpacity: 0.4,
+          spacing: 12,
+          spaceBetweenChildren: 12,
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          SpeedDialChild(
-            child: const Icon(Icons.login),
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            foregroundColor: Theme.of(context).colorScheme.onSecondary,
-            label: 'Join Classroom',
-            onTap: _showJoinGroupDialog,
-          ),
-        ],
+          children: [
+            SpeedDialChild(
+              child: const Icon(Icons.group_add),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              labelBackgroundColor: Theme.of(context).colorScheme.surface,
+              label: 'Create Classroom',
+              labelStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+              onTap: _showCreateGroupDialog,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 4,
+            ),
+            SpeedDialChild(
+              child: const Icon(Icons.login),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              foregroundColor: Theme.of(context).colorScheme.onSecondary,
+              labelBackgroundColor: Theme.of(context).colorScheme.surface,
+              label: 'Join Classroom',
+              labelStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+              onTap: _showJoinGroupDialog,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 4,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -239,6 +283,16 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
             ),
             textAlign: TextAlign.center,
           ),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: () => setState(() {}),
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            child: const Text('Retry'),
+          ),
         ],
       ),
     );
@@ -249,22 +303,66 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.group_outlined,
-            size: 56,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+          // Enhanced empty state with container and gradient
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.group_outlined,
+              size: 42,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              'No classrooms yet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
           const SizedBox(height: 16),
-          Text(
-            'No classrooms yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
           Text(
             'Create a new classroom or join an existing one',
             style: TextStyle(
@@ -273,30 +371,23 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
+          // Enhanced buttons with gradients
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              OutlinedButton.icon(
-                onPressed: _showCreateGroupDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Create Classroom'),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+              _buildGradientButton(
+                label: 'Create',
+                icon: Icons.add_rounded,
+                onTap: _showCreateGroupDialog,
+                primaryColor: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 16),
-              OutlinedButton.icon(
-                onPressed: _showJoinGroupDialog,
-                icon: const Icon(Icons.group_add),
-                label: const Text('Join Classroom'),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+              _buildGradientButton(
+                label: 'Join',
+                icon: Icons.group_add_rounded,
+                onTap: _showJoinGroupDialog,
+                primaryColor: Theme.of(context).colorScheme.secondary,
               ),
             ],
           ),
@@ -305,81 +396,164 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
     );
   }
 
-  Widget _buildGroupList(List<Group> groups) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      itemCount: groups.length,
-      separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
-      itemBuilder: (context, index) => _buildGroupTile(groups[index]),
-    );
-  }
-
-  Widget _buildGroupTile(Group group) {
-    final membersCount = group.members.length;
-    final userIsOwner = group.creatorId == _authService.currentUser?.uid;
-    
-    // Extract the group logo widget to ensure consistency
-    final groupLogo = Container(
-      width: 48,
-      height: 48,
-      alignment: Alignment.center,  // Add this
+  // Helper method for gradient buttons
+  Widget _buildGradientButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    required Color primaryColor,
+  }) {
+    return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: [
+            primaryColor,
+            primaryColor.withOpacity(0.7),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Text(
-        group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
-        style: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w500,
-          color: Theme.of(context).colorScheme.primary,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
-    
-    return OpenContainer(
-      transitionDuration: const Duration(milliseconds: 500),
-      openBuilder: (context, _) => GroupDetailsScreen(group: group),
-      closedShape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
+  }
+
+  Widget _buildGroupList(List<Group> groups) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 16, bottom: 100),
+        itemCount: groups.length,
+        itemBuilder: (context, index) => _buildEnhancedGroupTile(groups[index]),
       ),
-      closedElevation: 0, // Add this
-      closedColor: Theme.of(context).scaffoldBackgroundColor,
-      middleColor: Theme.of(context).scaffoldBackgroundColor, // Add this
-      tappable: false, // Add this
-      closedBuilder: (context, openContainer) => InkWell(
-        onTap: openContainer,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Row(
-            children: [
-              // Keep logo in fixed position
-              SizedBox(
-                width: 48,
-                height: 48,
-                child: groupLogo,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      group.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
+    );
+  }
+
+  Widget _buildEnhancedGroupTile(Group group) {
+    final membersCount = group.members.length;
+    final userIsOwner = group.creatorId == _authService.currentUser?.uid;
+    
+    // Generate a gradient color based on the group name (for visual variety)
+    final int hashCode = group.name.hashCode;
+    final Color baseColor = Color(0xFF000000 | (hashCode & 0xFFFFFF))
+        .withOpacity(0.8)
+        .withBlue(max(100, hashCode % 255))
+        .withRed(max(100, (hashCode >> 8) % 255));
+    
+    final LinearGradient nameGradient = LinearGradient(
+      colors: [
+        baseColor,
+        baseColor.withOpacity(0.7),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: OpenContainer(
+          transitionDuration: const Duration(milliseconds: 500),
+          openBuilder: (context, _) => GroupDetailsScreen(group: group),
+          closedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          closedElevation: 0,
+          closedColor: Colors.transparent,
+          tappable: false,
+          closedBuilder: (context, openContainer) => InkWell(
+            onTap: openContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Group logo with gradient
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      gradient: nameGradient,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: baseColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    // ... rest of your existing subtitle content
-                    Column(
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 4),
+                        Text(
+                          group.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
                         Row(
                           children: [
                             Icon(
-                              Icons.people_outline,
+                              Icons.people_outline_rounded,
                               size: 14,
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
@@ -391,30 +565,13 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            if (userIsOwner)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primaryContainer,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  'Owner',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w500,
-                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
                             Icon(
-                              Icons.key_outlined,
+                              Icons.key_rounded,
                               size: 14,
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
@@ -426,17 +583,45 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
+                            if (userIsOwner) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Owner',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
+  }
+  
+  // Helper function to prevent possible integer overflow
+  int max(int a, int b) {
+    return a > b ? a : b;
   }
 }

@@ -388,7 +388,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
         }
 
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          );
         }
 
         if (isToday) {
@@ -444,34 +451,30 @@ class _CalendarScreenState extends State<CalendarScreen> {
           }
 
           if (selectedDayAssignments.isEmpty && upcomingAssignments.isEmpty) {
-            return Center(
-              child: Text(
-                'No assignments due today or in the upcoming week',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
+            return _buildEmptyAssignmentsState(
+              'No assignments due today or in the upcoming week',
+              Icons.check_circle_outline_rounded
             );
           }
 
           return ListView(
+            padding: const EdgeInsets.only(bottom: 100), // Extra padding for bottom nav
             children: [
               if (overdue.isNotEmpty) ...[
-                _buildSectionHeader('Overdue', Icons.warning_rounded, Colors.red, overdue.length),
-                ...overdue.map((a) => _buildMinimalistAssignmentTile(a)),
+                _buildEnhancedSectionHeader('Overdue', Icons.warning_rounded, Colors.red, overdue.length),
+                ...overdue.map((a) => _buildEnhancedAssignmentTile(a)),
               ],
               if (dueToday.isNotEmpty) ...[
-                _buildSectionHeader('Due Today', Icons.event, Theme.of(context).colorScheme.primary, dueToday.length),
-                ...dueToday.map((a) => _buildMinimalistAssignmentTile(a)),
+                _buildEnhancedSectionHeader('Due Today', Icons.event_rounded, Theme.of(context).colorScheme.primary, dueToday.length),
+                ...dueToday.map((a) => _buildEnhancedAssignmentTile(a)),
               ],
               if (dueSoon.isNotEmpty) ...[
-                _buildSectionHeader('Due Soon', Icons.upcoming, Colors.red, dueSoon.length),
-                ...dueSoon.map((a) => _buildMinimalistAssignmentTile(a)),
+                _buildEnhancedSectionHeader('Due Soon', Icons.upcoming_rounded, Colors.orange, dueSoon.length),
+                ...dueSoon.map((a) => _buildEnhancedAssignmentTile(a)),
               ],
               if (dueThisWeek.isNotEmpty) ...[
-                _buildSectionHeader('Later This Week', Icons.date_range, Colors.orange, dueThisWeek.length),
-                ...dueThisWeek.map((a) => _buildMinimalistAssignmentTile(a)),
+                _buildEnhancedSectionHeader('Later This Week', Icons.date_range_rounded, Colors.teal, dueThisWeek.length),
+                ...dueThisWeek.map((a) => _buildEnhancedAssignmentTile(a)),
               ],
             ],
           );
@@ -487,30 +490,328 @@ class _CalendarScreenState extends State<CalendarScreen> {
           }).toList();
 
           if (selectedDayAssignments.isEmpty) {
-            return Center(
-              child: Text(
-                'No assignments due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
+            return _buildEmptyAssignmentsState(
+              'No assignments due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}',
+              Icons.event_available_rounded
             );
           }
 
           return ListView(
+            padding: const EdgeInsets.only(bottom: 100), // Extra padding for bottom nav
             children: [
-              _buildSectionHeader(
+              _buildEnhancedSectionHeader(
                 'Due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}', 
-                Icons.event, 
+                Icons.event_rounded, 
                 Theme.of(context).colorScheme.primary, 
                 selectedDayAssignments.length
               ),
-              ...selectedDayAssignments.map((a) => _buildMinimalistAssignmentTile(a)),
+              ...selectedDayAssignments.map((a) => _buildEnhancedAssignmentTile(a)),
             ],
           );
         }
       },
+    );
+  }
+
+  // Enhanced empty state with bubbly styling
+  Widget _buildEmptyAssignmentsState(String message, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              size: 40,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Enhanced section header with gradient and rounded corners
+  Widget _buildEnhancedSectionHeader(String title, IconData icon, Color color, int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.15),
+              color.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 14, color: color),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.25,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$count ${count == 1 ? 'item' : 'items'}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Enhanced assignment tile with gradient and shadows
+  Widget _buildEnhancedAssignmentTile(Assignment assignment) {
+    final now = DateTime.now();
+    final bool isOverdue = assignment.dueDate.isBefore(now);
+    final int daysUntilDue = assignment.dueDate.difference(now).inDays;
+    
+    // Enhanced status indicators with gradients
+    final Color statusColor;
+    final IconData statusIcon;
+    final LinearGradient statusGradient;
+    
+    if (isOverdue) {
+      statusColor = Colors.red;
+      statusIcon = Icons.warning_rounded;
+      statusGradient = LinearGradient(
+        colors: [Colors.red.shade300, Colors.red.shade600],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (daysUntilDue <= 3) {
+      statusColor = Colors.orange;
+      statusIcon = Icons.hourglass_bottom_rounded;
+      statusGradient = LinearGradient(
+        colors: [Colors.orange.shade300, Colors.orange.shade500],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else if (daysUntilDue <= 7) {
+      statusColor = Colors.teal;
+      statusIcon = Icons.hourglass_top_rounded;
+      statusGradient = LinearGradient(
+        colors: [Colors.teal.shade300, Colors.teal.shade500],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else {
+      statusColor = Colors.grey;
+      statusIcon = Icons.hourglass_empty_rounded;
+      statusGradient = LinearGradient(
+        colors: [Colors.grey.shade400, Colors.grey.shade600],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Theme.of(context).colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        margin: const EdgeInsets.only(bottom: 4),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AssignmentDetailsScreen(assignment: assignment),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  title: Text(
+                    assignment.name,
+                    style: TextStyle(
+                      fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                      fontSize: 16,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          assignment.className,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: statusGradient,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: statusColor.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                statusIcon,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                app_date_utils.getDueInDays(assignment.dueDate),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  leading: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: statusGradient,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: statusColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      statusIcon,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Add embedded tasks list with styling consistent with new design
+            EmbeddedTasksList(
+              assignmentId: assignment.id,
+              userId: _authService.currentUser?.uid ?? '',
+              taskService: _taskService,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

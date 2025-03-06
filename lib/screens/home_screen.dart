@@ -18,10 +18,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final AssignmentService _assignmentService = AssignmentService();
   final AuthService _authService = AuthService();
-  final GroupService _groupService = GroupService(); // Add this line at the top with other services
+  final GroupService _groupService = GroupService();
   final TaskService _taskService = TaskService();
   final TextEditingController _searchController = TextEditingController();
-  final Map<String, String> _groupNameCache = {}; // Add cache to store group names
+  final Map<String, String> _groupNameCache = {};
   String _searchTerm = '';
   bool _isSearching = false;
 
@@ -51,96 +51,144 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return Column(
-      children: [
-        // Search bar with removed outline
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _searchTerm = value),
-              decoration: InputDecoration(
-                hintText: 'Search assignments or classes',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _searchTerm.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 20),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchTerm = '');
-                        },
-                      )
-                    : null,
-                border: InputBorder.none,
-                focusedBorder: InputBorder.none, // Remove purple outline when focused
-                enabledBorder: InputBorder.none, // Remove outline when not focused
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+    return Container(
+      // Add subtle gradient background to entire screen
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surface.withOpacity(0.95),
+          ],
+        ),
+      ),
+      child: Column(
+        children: [
+          // Enhanced search bar with more rounded corners and subtle shadow
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              style: const TextStyle(fontSize: 15),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _searchTerm = value),
+                decoration: InputDecoration(
+                  hintText: 'Search assignments or classes',
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded, // Using rounded version
+                    size: 22,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+                  ),
+                  suffixIcon: _searchTerm.isNotEmpty
+                      ? Container(
+                          margin: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 16), // Using rounded version
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchTerm = '');
+                            },
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                          ),
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                ),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                cursorColor: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
-        ),
-        
-        // Stream of assignments - Updated to use getAllUserAssignments
-        Expanded(
-          child: StreamBuilder<List<Assignment>>(
-            // Change this line to use getAllUserAssignments instead of getUserAssignments
-            stream: _assignmentService.getAllUserAssignments(user.uid),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (snapshot.hasError) {
-                return _buildErrorWidget(snapshot.error);
-              }
-
-              final assignments = snapshot.data ?? [];
-              final filteredAssignments = _filterAssignments(assignments, _searchTerm);
-              
-              if (assignments.isEmpty) {
-                return _buildEmptyState(context);
-              }
-              
-              if (filteredAssignments.isEmpty) {
-                return _buildNoSearchResultsState(context);
-              }
-
-              // Group assignments by timeframe
-              final overdue = <Assignment>[];
-              final dueSoon = <Assignment>[];
-              final upcoming = <Assignment>[];
-              final later = <Assignment>[];
-
-              final now = DateTime.now();
-              for (final assignment in filteredAssignments) {
-                if (assignment.dueDate.isBefore(now)) {
-                  overdue.add(assignment);
-                } else if (assignment.dueDate.difference(now).inDays <= 3) {
-                  dueSoon.add(assignment);
-                } else if (assignment.dueDate.difference(now).inDays <= 7) {
-                  upcoming.add(assignment);
-                } else {
-                  later.add(assignment);
+          
+          // Stream of assignments
+          Expanded(
+            child: StreamBuilder<List<Assignment>>(
+              stream: _assignmentService.getAllUserAssignments(user.uid),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: CircularProgressIndicator(
+                      // Customized progress indicator
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  );
                 }
-              }
 
-              return _buildAssignmentsListView(
-                context,
-                overdue: overdue,
-                dueSoon: dueSoon,
-                upcoming: upcoming,
-                later: later,
-              );
-            },
+                if (snapshot.hasError) {
+                  return _buildErrorWidget(snapshot.error);
+                }
+
+                final assignments = snapshot.data ?? [];
+                final filteredAssignments = _filterAssignments(assignments, _searchTerm);
+                
+                if (assignments.isEmpty) {
+                  return _buildEmptyState(context);
+                }
+                
+                if (filteredAssignments.isEmpty) {
+                  return _buildNoSearchResultsState(context);
+                }
+
+                // Group assignments by timeframe
+                final overdue = <Assignment>[];
+                final dueSoon = <Assignment>[];
+                final upcoming = <Assignment>[];
+                final later = <Assignment>[];
+
+                final now = DateTime.now();
+                for (final assignment in filteredAssignments) {
+                  if (assignment.dueDate.isBefore(now)) {
+                    overdue.add(assignment);
+                  } else if (assignment.dueDate.difference(now).inDays <= 3) {
+                    dueSoon.add(assignment);
+                  } else if (assignment.dueDate.difference(now).inDays <= 7) {
+                    upcoming.add(assignment);
+                  } else {
+                    later.add(assignment);
+                  }
+                }
+
+                return _buildAssignmentsListView(
+                  context,
+                  overdue: overdue,
+                  dueSoon: dueSoon,
+                  upcoming: upcoming,
+                  later: later,
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -250,8 +298,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ...existing error and empty state widgets...
-
   Widget _buildAssignmentsListView(
     BuildContext context, {
     required List<Assignment> overdue,
@@ -260,15 +306,15 @@ class _HomeScreenState extends State<HomeScreen> {
     required List<Assignment> later,
   }) {
     return ListView(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 100), // Extra padding at bottom to account for nav bar
       children: [
-        // Add a light section header for all assignments
+        // Add redesigned section headers and assignment tiles
         if (overdue.isNotEmpty) ...[
           _buildSectionHeader(
             context,
             title: 'Overdue',
             count: overdue.length,
-            icon: Icons.warning_rounded,
+            icon: Icons.warning_rounded, // Using rounded icons
             color: Colors.red,
           ),
           ...overdue.map((assignment) => _buildAssignmentTile(context, assignment)),
@@ -278,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             title: 'Due Soon',
             count: dueSoon.length,
-            icon: Icons.hourglass_top,
+            icon: Icons.hourglass_top_rounded, // Using rounded icons
             color: Colors.orange,
           ),
           ...dueSoon.map((assignment) => _buildAssignmentTile(context, assignment)),
@@ -288,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             title: 'This Week',
             count: upcoming.length,
-            icon: Icons.event,
+            icon: Icons.event_rounded, // Using rounded icons
             color: Theme.of(context).colorScheme.primary,
           ),
           ...upcoming.map((assignment) => _buildAssignmentTile(context, assignment)),
@@ -298,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             title: 'Later',
             count: later.length,
-            icon: Icons.calendar_month,
+            icon: Icons.calendar_month_rounded, // Using rounded icons
             color: Colors.grey,
           ),
           ...later.map((assignment) => _buildAssignmentTile(context, assignment)),
@@ -308,14 +354,21 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_searchTerm.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Showing ${overdue.length + dueSoon.length + upcoming.length + later.length} results for "$_searchTerm"',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontStyle: FontStyle.italic,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(20),
               ),
-              textAlign: TextAlign.center,
+              child: Text(
+                'Showing ${overdue.length + dueSoon.length + upcoming.length + later.length} results for "$_searchTerm"',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
         ],
@@ -323,33 +376,112 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ...existing _buildSectionHeader widget...
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required String title,
+    required int count,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.15),
+              color.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 14, color: color),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.25,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$count ${count == 1 ? 'item' : 'items'}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildAssignmentTile(BuildContext context, Assignment assignment) {
     final now = DateTime.now();
     final bool isOverdue = assignment.dueDate.isBefore(now);
     final int daysUntilDue = assignment.dueDate.difference(now).inDays;
     
-    // More urgent color scheme
+    // Status indicators with updated styling
     final Color statusColor;
     final IconData statusIcon;
+    final LinearGradient statusGradient;
     
     if (isOverdue) {
-      // Overdue assignments - red warning icon
       statusColor = Colors.red;
-      statusIcon = Icons.warning_rounded;
+      statusIcon = Icons.warning_rounded; // Using rounded version
+      statusGradient = LinearGradient(
+        colors: [Colors.red.shade300, Colors.red.shade600],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
     } else if (daysUntilDue <= 3) {
-      // Due within 3 days - red hourglass
       statusColor = Colors.red;
-      statusIcon = Icons.hourglass_bottom;
+      statusIcon = Icons.hourglass_bottom_rounded; // Using rounded version
+      statusGradient = LinearGradient(
+        colors: [Colors.red.shade200, Colors.red.shade400],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
     } else if (daysUntilDue <= 7) {
-      // Due within a week - orange hourglass
       statusColor = Colors.orange;
-      statusIcon = Icons.hourglass_top;
+      statusIcon = Icons.hourglass_top_rounded; // Using rounded version
+      statusGradient = LinearGradient(
+        colors: [Colors.orange.shade300, Colors.orange.shade500],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
     } else {
-      // Due later - grey hourglass
       statusColor = Colors.grey;
-      statusIcon = Icons.hourglass_empty;
+      statusIcon = Icons.hourglass_empty_rounded; // Using rounded version
+      statusGradient = LinearGradient(
+        colors: [Colors.grey.shade400, Colors.grey.shade500],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
     }
     
     // Highlight search term if present
@@ -376,97 +508,110 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     
-    return Column(
-      children: [
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-          title: titleWidget,
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: classNameWidget),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
-                        shape: BoxShape.circle,
-                      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Theme.of(context).colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        margin: const EdgeInsets.only(bottom: 4),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AssignmentDetailsScreen(assignment: assignment),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  title: titleWidget,
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: classNameWidget),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: statusGradient,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                statusIcon,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                app_date_utils.getDueInDays(assignment.dueDate),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    // Text(
-                    //   'Classroom: ${_getGroupNameFromId(assignment.groupId)}',
-                    //   style: TextStyle(
-                    //     fontSize: 13,
-                    //     color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    //   ),
-                    // ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
+                  ),
+                  leading: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: statusGradient,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: statusColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
                       statusIcon,
-                      size: 14,
-                      color: statusColor,
+                      size: 20,
+                      color: Colors.white,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      app_date_utils.getDueInDays(assignment.dueDate),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: statusColor,
-                        fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-          leading: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
-            ),
-            child: Icon(
-              statusIcon,
-              size: 18,
-              color: statusColor,
-            ),
-          ),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AssignmentDetailsScreen(assignment: assignment),
               ),
-            );
-          },
+            ),
+            // Add embedded tasks list after the ListTile with updated styling
+            EmbeddedTasksList(
+              assignmentId: assignment.id,
+              userId: _authService.currentUser?.uid ?? '',
+              taskService: _taskService,
+            ),
+          ],
         ),
-        // Add embedded tasks list after the ListTile
-        EmbeddedTasksList(
-          assignmentId: assignment.id,
-          userId: _authService.currentUser?.uid ?? '',
-          taskService: _taskService,
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 72, right: 16),
-          child: Divider(
-            height: 1,
-            color: Theme.of(context).dividerColor.withOpacity(0.2),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -532,8 +677,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ...existing helper methods...
-
   // Add this method to get group name
   String _getGroupNameFromId(String groupId) {
     return _groupNameCache[groupId] ?? 'Loading...';
@@ -581,40 +724,4 @@ class Match {
   final int end;
   
   Match(this.start, this.end);
-}
-
-// Add this method to your _HomeScreenState class
-Widget _buildSectionHeader(
-  BuildContext context, {
-  required String title,
-  required int count,
-  required IconData icon,
-  required Color color,
-}) {
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-    child: Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: color,
-            letterSpacing: 0.25,
-          ),
-        ),
-        const Spacer(),
-        Text(
-          '$count ${count == 1 ? 'item' : 'items'}',
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    ),
-  );
 }
