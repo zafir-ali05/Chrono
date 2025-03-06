@@ -6,7 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'providers/theme_provider.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
-import 'screens/groups_screen.dart';
+import 'screens/classrooms_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/main_screen.dart';

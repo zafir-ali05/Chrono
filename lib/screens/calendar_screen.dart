@@ -4,6 +4,7 @@ import '../models/assignment.dart';
 import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
 import '../utils/date_utils.dart' as app_date_utils;
+import 'package:animations/animations.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -213,26 +214,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   void _processAssignments(List<Assignment> assignments) {
-    // Same implementation as before
     _assignments.clear();
     for (final assignment in assignments) {
-      if (assignment.dueDate != null) {
-        try {
-          final day = DateTime(
-            assignment.dueDate.year,
-            assignment.dueDate.month,
-            assignment.dueDate.day,
-          );
-          
-          if (_assignments.containsKey(day)) {
-            _assignments[day]!.add(assignment);
-          } else {
-            _assignments[day] = [assignment];
-          }
-        } catch (e) {
-          print('Error processing assignment date: $e');
-          continue;
+      try {
+        // Normalize the date to remove time component
+        final day = DateTime(
+          assignment.dueDate.year,
+          assignment.dueDate.month,
+          assignment.dueDate.day,
+        );
+        
+        if (_assignments.containsKey(day)) {
+          _assignments[day]!.add(assignment);
+        } else {
+          _assignments[day] = [assignment];
         }
+      } catch (e) {
+        print('Error processing assignment date: $e');
+        continue;
       }
     }
   }
@@ -293,7 +292,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           shape: BoxShape.circle,
         ),
         
-        // Clean marker style - small dot
+        // Clean marker style - fixed color
         markerDecoration: BoxDecoration(
           color: primaryColor.withOpacity(0.8),
           shape: BoxShape.circle,
@@ -334,18 +333,127 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ),
       ),
+      
+      // Add this to handle overdue markers
+      calendarBuilders: CalendarBuilders(
+        markerBuilder: (context, date, events) {
+          if (events.isEmpty) return null;
+          
+          return Positioned(
+            bottom: 1,
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _isOverdue(date) 
+                    ? Colors.red.withOpacity(0.8)
+                    : primaryColor.withOpacity(0.8),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
   Widget _buildAssignmentsList() {
-    // If today is selected, show upcoming assignments, otherwise show selected day assignments
-    if (isSameDay(_selectedDay, DateTime.now())) {
-      return _buildUpcomingAssignments();
-    } else {
-      return _buildSelectedDayAssignments(_selectedDay);
+    // Get current day assignments with proper date normalization
+    final normalizedSelectedDay = DateTime(
+      _selectedDay.year,
+      _selectedDay.month,
+      _selectedDay.day,
+    );
+    
+    final selectedDayAssignments = _assignments[normalizedSelectedDay] ?? [];
+    
+    // Separate overdue from upcoming
+    final now = DateTime.now();
+    final normalizedNow = DateTime(now.year, now.month, now.day);
+    final overdue = <Assignment>[];
+    final dueToday = <Assignment>[];
+
+    for (final assignment in selectedDayAssignments) {
+      final normalizedDueDate = DateTime(
+        assignment.dueDate.year,
+        assignment.dueDate.month,
+        assignment.dueDate.day,
+      );
+      
+      if (normalizedDueDate.isBefore(normalizedNow)) {
+        overdue.add(assignment);
+      } else if (normalizedDueDate.isAtSameMomentAs(normalizedNow)) {
+        dueToday.add(assignment);
+      }
     }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Column(
+        key: ValueKey<DateTime>(_selectedDay),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (overdue.isNotEmpty) ...[
+            _buildSectionHeader('Overdue', Icons.warning_rounded, Colors.red, overdue.length),
+            ...overdue.map((a) => _buildMinimalistAssignmentTile(a)),
+            const Divider(height: 32),
+          ],
+          if (dueToday.isNotEmpty) ...[
+            _buildSectionHeader('Due Today', Icons.event, Theme.of(context).colorScheme.primary, dueToday.length),
+            ...dueToday.map((a) => _buildMinimalistAssignmentTile(a)),
+          ],
+          if (overdue.isEmpty && dueToday.isEmpty)
+            Expanded(
+              child: Center(
+                child: Text(
+                  'No assignments due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
-  
+
+  Widget _buildSectionHeader(String title, IconData icon, Color color, int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: color,
+              letterSpacing: 0.25,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '$count ${count == 1 ? 'item' : 'items'}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Add helper method to check if a day has overdue assignments
+  bool _isOverdue(DateTime day) {
+    final assignments = _assignments[day] ?? [];
+    final now = DateTime.now();
+    return assignments.any((a) => a.dueDate.isBefore(now));
+  }
+
   Widget _buildUpcomingAssignments() {
     final user = _authService.currentUser;
     if (user == null) {
@@ -501,51 +609,55 @@ class _CalendarScreenState extends State<CalendarScreen> {
       statusIcon = Icons.hourglass_empty;
     }
     
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      title: Text(
-        assignment.name,
-        style: TextStyle(
-          fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-          fontSize: 15,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+        title: Text(
+          assignment.name,
+          style: TextStyle(
+            fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+            fontSize: 15,
+          ),
         ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              assignment.className,
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                assignment.className,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              app_date_utils.getDueInDays(assignment.dueDate),
-              style: TextStyle(
-                fontSize: 12,
-                color: statusColor,
-                fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+              const SizedBox(height: 2),
+              Text(
+                app_date_utils.getDueInDays(assignment.dueDate),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: statusColor,
+                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: statusColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: statusColor.withOpacity(0.3)),
-        ),
-        child: Icon(
-          statusIcon, // Use our new status-specific icon
-          size: 18,
-          color: statusColor,
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: statusColor.withOpacity(0.3)),
+          ),
+          child: Icon(
+            statusIcon, // Use our new status-specific icon
+            size: 18,
+            color: statusColor,
+          ),
         ),
       ),
     );

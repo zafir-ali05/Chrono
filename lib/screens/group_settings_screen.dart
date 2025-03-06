@@ -4,6 +4,7 @@ import '../models/assignment.dart';
 import '../services/group_service.dart';
 import '../services/auth_service.dart';
 import '../services/assignment_service.dart';
+import '../widgets/animated_dialog.dart';
 
 class GroupSettingsScreen extends StatefulWidget {
   final Group group;
@@ -37,7 +38,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Group Settings'),
+        title: const Text('Classroom Settings'),
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _groupService.getGroupMembers(widget.group.id),
@@ -121,7 +122,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Group Code: ${widget.group.id}',
+                                      'Classroom Code: ${widget.group.id}',
                                       style: TextStyle(
                                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       ),
@@ -176,7 +177,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                         Icons.edit_outlined,
                         color: Theme.of(context).colorScheme.primary,
                       ),
-                      title: const Text('Edit Group Name'),
+                      title: const Text('Edit Classroom Name'),
                       onTap: () => _showEditGroupDialog(context),
                     ),
                   ],
@@ -243,7 +244,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Group Owner',
+                                  'Classroom Owner',
                                   style: TextStyle(
                                     color: Theme.of(context).colorScheme.primary,
                                     fontSize: 12,
@@ -267,7 +268,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       Icons.logout,
                       color: Theme.of(context).colorScheme.error,
                     ),
-                    title: const Text('Leave Group'),
+                    title: const Text('Leave Classroom'),
                     textColor: Theme.of(context).colorScheme.error,
                     onTap: () => _showLeaveGroupDialog(context),
                   ),
@@ -310,41 +311,55 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   Future<void> _showEditGroupDialog(BuildContext context) async {
     final nameController = TextEditingController(text: widget.group.name);
     
-    return showDialog(
+    return showGeneralDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Group'),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(
-            labelText: 'Group Name',
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutQuart,
+        );
+
+        return AnimatedDialog(
+          animation: curvedAnimation,
+          child: AlertDialog(
+            title: const Text('Edit Classroom'),
+            content: TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Classroom Name',
+              ),
+              autofocus: true,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (nameController.text.isNotEmpty) {
+                    await _groupService.updateGroup(
+                      groupId: widget.group.id,
+                      name: nameController.text,
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Classroom updated')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                await _groupService.updateGroup(
-                  groupId: widget.group.id,
-                  name: nameController.text,
-                );
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Group updated')),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 200),
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black54,
     );
   }
 
@@ -352,8 +367,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Leave Group'),
-        content: const Text('Are you sure you want to leave this group?'),
+        title: const Text('Leave Classroom'),
+        content: const Text('Are you sure you want to leave this classroom?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -371,7 +386,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   Navigator.pop(context); // Close settings screen
                   Navigator.pop(context); // Close group details screen
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Successfully left the group')),
+                    const SnackBar(content: Text('Successfully left the classroom')),
                   );
                 }
               } catch (e) {
@@ -413,7 +428,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               ),
             ),
             Text(
-              'Group has $actualMemberCount ${actualMemberCount == 1 ? 'member' : 'members'}',
+              'Classroom has $actualMemberCount ${actualMemberCount == 1 ? 'member' : 'members'}',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                 fontSize: 12,
