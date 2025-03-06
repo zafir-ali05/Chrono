@@ -1,6 +1,6 @@
-# 🗓️ AssignmentReminder
+# 🕛 Chrono
 
-AssignmentReminder is a Flutter-based mobile application designed to help students and teams stay organized with their assignments. Users can create and join groups, manage assignments, and communicate with group members through an integrated chat feature. The app also includes a dedicated calendar for tracking assignment due dates and a personal task manager for breaking down assignments into individual tasks.
+Chrono is a Flutter-based mobile application designed to help students and teams stay organized with their assignments. Users can create and join groups, manage assignments, and communicate with group members through an integrated chat feature. The app also includes a dedicated calendar for tracking assignment due dates and a personal task manager for breaking down assignments into individual tasks.
 
 
 ## 🚀 Features
