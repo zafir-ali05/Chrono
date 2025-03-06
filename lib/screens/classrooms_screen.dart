@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:animations/animations.dart';
 import '../services/group_service.dart';
 import '../services/auth_service.dart';
 import '../models/group.dart';
 import 'group_details_screen.dart';
 
-class GroupsScreen extends StatefulWidget {
-  const GroupsScreen({super.key});
+class ClassroomsScreen extends StatefulWidget {
+  const ClassroomsScreen({super.key});
 
   @override
-  State<GroupsScreen> createState() => _GroupsScreenState();
+  State<ClassroomsScreen> createState() => _ClassroomsScreenState();
 }
 
-class _GroupsScreenState extends State<GroupsScreen> {
+class _ClassroomsScreenState extends State<ClassroomsScreen> {
   final GroupService _groupService = GroupService();
   final AuthService _authService = AuthService();
 
@@ -23,11 +24,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Create Group'),
+        title: const Text('Create Classroom'),
         content: TextField(
           controller: nameController,
           decoration: const InputDecoration(
-            labelText: 'Group Name',
+            labelText: 'Classroom Name',
           ),
           autofocus: true,
         ),
@@ -43,7 +44,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   const SnackBar(
                     behavior: SnackBarBehavior.floating,
                     margin: EdgeInsets.all(16),
-                    content: Text('Please enter a group name'),
+                    content: Text('Please enter a classroom name'),
                   ),
                 );
                 return;
@@ -62,7 +63,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                     SnackBar(
                       behavior: SnackBarBehavior.floating,
                       margin: const EdgeInsets.all(16),
-                      content: Text('Group created! Code: ${group.id}'),
+                      content: Text('Classroom created! Code: ${group.id}'),
                     ),
                   );
                 }
@@ -92,11 +93,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Join Group'),
+        title: const Text('Join Classroom'),
         content: TextField(
           controller: codeController,
           decoration: const InputDecoration(
-            labelText: 'Group Code',
+            labelText: 'Classroom Code',
             hintText: 'Enter the 6-character code',
           ),
           autofocus: true,
@@ -114,7 +115,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   const SnackBar(
                     behavior: SnackBarBehavior.floating,
                     margin: EdgeInsets.all(16),
-                    content: Text('Please enter a group code'),
+                    content: Text('Please enter a classroom code'),
                   ),
                 );
                 return;
@@ -133,7 +134,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                     const SnackBar(
                       behavior: SnackBarBehavior.floating,
                       margin: EdgeInsets.all(16),
-                      content: Text('Successfully joined group!'),
+                      content: Text('Successfully joined classroom!'),
                     ),
                   );
                 }
@@ -161,7 +162,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
     final user = _authService.currentUser;
     if (user == null) {
       return const Center(
-        child: Text('Please sign in to view your groups'),
+        child: Text('Please sign in to view your classrooms'),
       );
     }
 
@@ -199,14 +200,14 @@ class _GroupsScreenState extends State<GroupsScreen> {
             child: const Icon(Icons.group_add),
             backgroundColor: Theme.of(context).colorScheme.primary,
             foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            label: 'Create Group',
+            label: 'Create Classroom',
             onTap: _showCreateGroupDialog,
           ),
           SpeedDialChild(
             child: const Icon(Icons.login),
             backgroundColor: Theme.of(context).colorScheme.secondary,
             foregroundColor: Theme.of(context).colorScheme.onSecondary,
-            label: 'Join Group',
+            label: 'Join Classroom',
             onTap: _showJoinGroupDialog,
           ),
         ],
@@ -222,7 +223,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           const Icon(Icons.warning_amber_rounded, size: 40, color: Colors.amber),
           const SizedBox(height: 16),
           Text(
-            'Could not load groups',
+            'Could not load classrooms',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
@@ -255,7 +256,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No groups yet',
+            'No classrooms yet',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w500,
@@ -265,7 +266,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create a new group or join an existing one',
+            'Create a new classroom or join an existing one',
             style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -279,7 +280,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
               OutlinedButton.icon(
                 onPressed: _showCreateGroupDialog,
                 icon: const Icon(Icons.add),
-                label: const Text('Create Group'),
+                label: const Text('Create Classroom'),
                 style: OutlinedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -290,7 +291,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
               OutlinedButton.icon(
                 onPressed: _showJoinGroupDialog,
                 icon: const Icon(Icons.group_add),
-                label: const Text('Join Group'),
+                label: const Text('Join Classroom'),
                 style: OutlinedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -317,99 +318,125 @@ class _GroupsScreenState extends State<GroupsScreen> {
     final membersCount = group.members.length;
     final userIsOwner = group.creatorId == _authService.currentUser?.uid;
     
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      title: Text(
-        group.name,
-        style: const TextStyle(
+    // Extract the group logo widget to ensure consistency
+    final groupLogo = Container(
+      width: 48,
+      height: 48,
+      alignment: Alignment.center,  // Add this
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
+        style: TextStyle(
+          fontSize: 24,
           fontWeight: FontWeight.w500,
-          fontSize: 16,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 4),
-          Row(
+    );
+    
+    return OpenContainer(
+      transitionDuration: const Duration(milliseconds: 500),
+      openBuilder: (context, _) => GroupDetailsScreen(group: group),
+      closedShape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+      ),
+      closedElevation: 0, // Add this
+      closedColor: Theme.of(context).scaffoldBackgroundColor,
+      middleColor: Theme.of(context).scaffoldBackgroundColor, // Add this
+      tappable: false, // Add this
+      closedBuilder: (context, openContainer) => InkWell(
+        onTap: openContainer,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
             children: [
-              Icon(
-                Icons.people_outline,
-                size: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              // Keep logo in fixed position
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: groupLogo,
               ),
-              const SizedBox(width: 4),
-              Text(
-                '$membersCount ${membersCount == 1 ? 'member' : 'members'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 12),
-              if (userIsOwner)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Owner',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
+                    // ... rest of your existing subtitle content
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.people_outline,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$membersCount ${membersCount == 1 ? 'member' : 'members'}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            if (userIsOwner)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Owner',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.key_outlined,
+                              size: 14,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Code: ${group.id}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(
-                Icons.key_outlined,
-                size: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'Code: ${group.id}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Text(
-            group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
         ),
       ),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => GroupDetailsScreen(group: group),
-          ),
-        );
-      },
     );
   }
 }
