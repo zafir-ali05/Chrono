@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/assignment.dart';
+import 'package:flutter/services.dart'; // Import for sound effects
 import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
 import '../utils/date_utils.dart' as app_date_utils;
@@ -7,6 +8,7 @@ import '../services/group_service.dart';
 import 'assignment_details_screen.dart';
 import '../widgets/embedded_tasks_list.dart';
 import '../services/task_service.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,7 +17,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final AssignmentService _assignmentService = AssignmentService();
   final AuthService _authService = AuthService();
   final GroupService _groupService = GroupService();
@@ -24,6 +26,17 @@ class _HomeScreenState extends State<HomeScreen> {
   final Map<String, String> _groupNameCache = {};
   String _searchTerm = '';
   bool _isSearching = false;
+    
+  // Store section expansion state
+  final Map<String, bool> _expandedSections = {
+    'Overdue': true,
+    'Due Soon': true,
+    'This Week': true,
+    'Later': true,
+  };
+  
+  // Store controllers for animations
+  final Map<String, AnimationController> _animationControllers = {};
 
   // Modified method to dismiss keyboard only when it's actually showing
   void _dismissKeyboard() {
@@ -34,8 +47,37 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    
+    // Initialize controllers with optimized settings
+    for (final section in ['Overdue', 'Due Soon', 'This Week', 'Later']) {
+      final isExpanded = _expandedSections[section] ?? true;
+      _animationControllers[section] = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 250), // Slightly faster for better perceived performance
+        value: isExpanded ? 1.0 : 0.0,
+      );
+    }
+    
+    // Fetch group names when assignments are loaded
+    if (_authService.currentUser != null) {
+      _assignmentService.getUserAssignments(_authService.currentUser!.uid)
+        .listen((assignments) {
+          for (var assignment in assignments) {
+            _fetchGroupName(assignment.groupId);
+          }
+        });
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
+    // Dispose all animation controllers
+    for (final controller in _animationControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -48,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
              assignment.className.toLowerCase().contains(lowercaseQuery);
     }).toList();
   }
-
+  
   @override
   Widget build(BuildContext context) {
     final user = _authService.currentUser;
@@ -58,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Text('Please sign in to view your assignments'),
       );
     }
-
+    
     return GestureDetector(
       // Dismiss keyboard when tapping outside of search field
       onTap: _dismissKeyboard,
@@ -77,37 +119,85 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Column(
           children: [
-            // Simple Header
+            // Custom app bar row with profile FAB
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 48, 16, 8), // Match search bar's left padding
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center, // Add this
+              padding: const EdgeInsets.fromLTRB(24, 48, 16, 8),
+              child: Row(
                 children: [
-                  Text(
-                    'Upcoming Assignments',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface,
+                  // Greeting text column
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hi, ${user.displayName?.split(' ')[0] ?? 'there'}! 👋',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Stay on track 🚀',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                    textAlign: TextAlign.center, // Add this
                   ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: double.infinity, // Makes the container take full width
-                    child: Text(
-                      'Stay on track and ace your deadlines! 🚀',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  // Profile FAB
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 45,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                            Theme.of(context).colorScheme.primary,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      textAlign: TextAlign.center, // Centers the text
+                      child: Center(
+                        child: Text(
+                          user.displayName?.isNotEmpty == true
+                              ? user.displayName![0].toUpperCase()
+                              : user.email?[0].toUpperCase() ?? '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-
+            
             // Enhanced search bar with more rounded corners and subtle shadow
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -157,7 +247,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               icon: const Icon(Icons.clear_rounded, size: 16), // Using rounded version
                               onPressed: () {
                                 _searchController.clear();
+                                // Clear the search term and dismiss keyboard
                                 setState(() => _searchTerm = '');
+                                // Dismiss the keyboard
+                                FocusScope.of(context).unfocus();
                               },
                               color: Theme.of(context).colorScheme.onPrimaryContainer,
                               padding: EdgeInsets.zero,
@@ -199,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     }
-
+                    
                     if (snapshot.hasError) {
                       return _buildErrorWidget(snapshot.error);
                     }
@@ -214,13 +307,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (filteredAssignments.isEmpty) {
                       return _buildNoSearchResultsState(context);
                     }
-
+                    
                     // Group assignments by timeframe
                     final overdue = <Assignment>[];
                     final dueSoon = <Assignment>[];
                     final upcoming = <Assignment>[];
                     final later = <Assignment>[];
-
+                    
                     final now = DateTime.now();
                     for (final assignment in filteredAssignments) {
                       if (assignment.dueDate.isBefore(now)) {
@@ -233,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         later.add(assignment);
                       }
                     }
-
+                    
                     return _buildAssignmentsListView(
                       context,
                       overdue: overdue,
@@ -369,44 +462,52 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         // Add redesigned section headers and assignment tiles
         if (overdue.isNotEmpty) ...[
-          _buildSectionHeader(
-            context,
-            title: 'Overdue',
-            count: overdue.length,
-            icon: Icons.warning_rounded, // Using rounded icons
-            color: Colors.red,
+          RepaintBoundary(
+            child: _SectionWrapper(
+              title: 'Overdue',
+              assignments: overdue,
+              initiallyExpanded: _expandedSections['Overdue'] ?? true,
+              controller: _animationControllers['Overdue']!,
+              icon: Icons.warning_rounded, // Using rounded icons
+              color: Colors.red,
+            ),
           ),
-          ...overdue.map((assignment) => _buildAssignmentTile(context, assignment)),
         ],
         if (dueSoon.isNotEmpty) ...[
-          _buildSectionHeader(
-            context,
-            title: 'Due Soon',
-            count: dueSoon.length,
-            icon: Icons.hourglass_top_rounded, // Using rounded icons
-            color: Colors.orange,
+          RepaintBoundary(
+            child: _SectionWrapper(
+              title: 'Due Soon',
+              assignments: dueSoon,
+              initiallyExpanded: _expandedSections['Due Soon'] ?? true,
+              controller: _animationControllers['Due Soon']!,
+              icon: Icons.hourglass_top_rounded, // Using rounded icons
+              color: Colors.orange,
+            ),
           ),
-          ...dueSoon.map((assignment) => _buildAssignmentTile(context, assignment)),
         ],
         if (upcoming.isNotEmpty) ...[
-          _buildSectionHeader(
-            context,
-            title: 'This Week',
-            count: upcoming.length,
-            icon: Icons.event_rounded, // Using rounded icons
-            color: Theme.of(context).colorScheme.primary,
+          RepaintBoundary(
+            child: _SectionWrapper(
+              title: 'This Week',
+              assignments: upcoming,
+              initiallyExpanded: _expandedSections['This Week'] ?? true,
+              controller: _animationControllers['This Week']!,
+              icon: Icons.event_rounded, // Using rounded icons
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
-          ...upcoming.map((assignment) => _buildAssignmentTile(context, assignment)),
         ],
         if (later.isNotEmpty) ...[
-          _buildSectionHeader(
-            context,
-            title: 'Later',
-            count: later.length,
-            icon: Icons.calendar_month_rounded, // Using rounded icons
-            color: Colors.grey,
+          RepaintBoundary(
+            child: _SectionWrapper(
+              title: 'Later',
+              assignments: later,
+              initiallyExpanded: _expandedSections['Later'] ?? true,
+              controller: _animationControllers['Later']!,
+              icon: Icons.calendar_month_rounded, // Using rounded icons
+              color: Colors.grey,
+            ),
           ),
-          ...later.map((assignment) => _buildAssignmentTile(context, assignment)),
         ],
         
         // Add information about search results if searching
@@ -435,6 +536,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // New method to build animated assignments list with pre-built content
+  Widget _buildAnimatedAssignmentsList(String sectionTitle, List<Assignment> assignments) {
+    final controller = _animationControllers[sectionTitle]!;
+    final isExpanded = _expandedSections[sectionTitle] ?? true;
+    
+    // Move animation triggers outside the build cycle using post-frame callback
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller.isAnimating) return; // Skip if already animating
+      
+      if (isExpanded && controller.value != 1.0) {
+        controller.forward();
+      } else if (!isExpanded && controller.value != 0.0) {
+        controller.reverse();
+      }
+    });
+    
+    // Pre-build content to avoid rebuilding during animation
+    final Widget content = Column(
+      children: assignments.map((assignment) => _buildAssignmentTile(context, assignment)).toList(),
+    );
+    
+    return RepaintBoundary(
+      key: ValueKey('section_$sectionTitle'),
+      child: AnimatedBuilder(
+        animation: controller,
+        // Use ClipRect with a constant child to prevent repainting content
+        builder: (context, child) {
+          return ClipRect(
+            child: Align(
+              alignment: Alignment.topCenter,
+              heightFactor: controller.value,
+              child: child,
+            ),
+          );
+        },
+        child: content, // Pre-built content passed here
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(
     BuildContext context, {
     required String title,
@@ -442,64 +583,100 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required Color color,
   }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(0.15),
-              color.withOpacity(0.05),
-            ],
-          ),
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isExpanded = _expandedSections[title] ?? true;
+    
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        child: Material(
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
+          child: InkWell(
+            onTap: () {
+              // Use separate method for toggle
+              _toggleSectionExpansion(title);
+            },
+            borderRadius: BorderRadius.circular(18),
+            child: DecoratedBox(
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withOpacity(isDarkMode ? 0.25 : 0.15),
+                    color.withOpacity(isDarkMode ? 0.15 : 0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: isDarkMode
+                    ? Border.all(
+                        color: color.withOpacity(0.3),
+                        width: 0.5,
+                      )
+                    : null,
               ),
-              child: Icon(icon, size: 14, color: color),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: color,
-                letterSpacing: 0.25,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count ${count == 1 ? 'item' : 'items'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: color,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: 14, color: color),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                        letterSpacing: 0.25,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$count ${count == 1 ? 'item' : 'items'}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.0 : 0.5,
+                      duration: const Duration(milliseconds: 300),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: color,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  // Wrap the _buildAssignmentTile with a memoization function
   Widget _buildAssignmentTile(BuildContext context, Assignment assignment) {
+    // Move variable declarations before any widget construction
     final now = DateTime.now();
     final bool isOverdue = assignment.dueDate.isBefore(now);
     final int daysUntilDue = assignment.dueDate.difference(now).inDays;
@@ -518,10 +695,11 @@ class _HomeScreenState extends State<HomeScreen> {
         end: Alignment.bottomRight,
       );
     } else if (daysUntilDue <= 3) {
-      statusColor = Colors.red;
+      // Use consistent orange color for all "Due Soon" assignments
+      statusColor = Colors.orange;
       statusIcon = Icons.hourglass_bottom_rounded; // Using rounded version
       statusGradient = LinearGradient(
-        colors: [Colors.red.shade200, Colors.red.shade400],
+        colors: [Colors.orange.shade300, Colors.orange.shade500], // Consistent orange gradient
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
@@ -543,7 +721,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     
-    // Highlight search term if present
+    // Create title and className widgets here
     Widget titleWidget;
     Widget classNameWidget;
     
@@ -567,108 +745,143 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+    // Due date indicator widget
+    Widget dueDateIndicator = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: statusGradient,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            statusIcon,
+            size: 14,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            app_date_utils.getDueInDays(assignment.dueDate),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+              fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
             ),
-          ],
-        ),
-        margin: const EdgeInsets.only(bottom: 4),
-        clipBehavior: Clip.hardEdge,
-        child: Column(
-          children: [
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AssignmentDetailsScreen(assignment: assignment),
-                  ),
-                );
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  title: titleWidget,
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ],
+      ),
+    );
+    
+    // Determine if we're in dark mode
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    // Now build and return the widget tree
+    return RepaintBoundary(
+      key: ValueKey(assignment.id), // Add key for better reuse
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            // Adjust background color based on theme brightness
+            color: isDarkMode 
+                ? Theme.of(context).colorScheme.surface.withOpacity(1.0)  // Full opacity in dark mode
+                : Theme.of(context).colorScheme.surface,
+            // Enhance shadow for dark mode
+            boxShadow: [
+              BoxShadow(
+                color: isDarkMode
+                    ? Colors.black.withOpacity(0.3)   // Darker shadow for dark mode
+                    : Colors.black.withOpacity(0.05),
+                blurRadius: isDarkMode ? 12 : 10,
+                offset: const Offset(0, 2),
+                spreadRadius: isDarkMode ? 1 : 0,     // Add spread in dark mode
+              ),
+              // Add a subtle glow effect in dark mode for better visibility
+              if (isDarkMode) BoxShadow(
+                color: statusColor.withOpacity(0.15),  // Colored glow based on status
+                blurRadius: 8,
+                offset: const Offset(0, 0),
+                spreadRadius: 0,
+              ),
+            ],
+            // Add subtle border for dark mode
+            border: isDarkMode
+                ? Border.all(
+                    color: Colors.grey.withOpacity(0.2),
+                    width: 0.5,
+                  )
+                : null,
+          ),
+          margin: const EdgeInsets.only(bottom: 4),
+          clipBehavior: Clip.hardEdge,
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AssignmentDetailsScreen(assignment: assignment),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    title: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start, // Align to top
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: classNameWidget),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            gradient: statusGradient,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                statusIcon,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                app_date_utils.getDueInDays(assignment.dueDate),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white,
-                                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
+                        // Assignment name on the left
+                        Expanded(child: titleWidget),
+                        // Due date indicator on the right with some top padding
+                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2), // Add 2px of top padding
+                          child: dueDateIndicator,
                         ),
                       ],
                     ),
-                  ),
-                  leading: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      gradient: statusGradient,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: statusColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2), // Reduced top padding from 4 to 2
+                      child: classNameWidget,
                     ),
-                    child: Icon(
-                      statusIcon,
-                      size: 20,
-                      color: Colors.white,
+                    leading: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        gradient: statusGradient,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        statusIcon,
+                        size: 20,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            // Add embedded tasks list after the ListTile with updated styling
-            EmbeddedTasksList(
-              assignmentId: assignment.id,
-              userId: _authService.currentUser?.uid ?? '',
-              taskService: _taskService,
-            ),
-          ],
+              // Move embedded tasks list higher by reducing padding
+              Padding(
+                padding: const EdgeInsets.only(top: 0, bottom: 12), // Increased bottom padding from 8 to 12
+                child: EmbeddedTasksList(
+                  assignmentId: assignment.id,
+                  userId: _authService.currentUser?.uid ?? '',
+                  taskService: _taskService,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -736,7 +949,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Add this method to get group name
   String _getGroupNameFromId(String groupId) {
     return _groupNameCache[groupId] ?? 'Loading...';
   }
@@ -762,18 +974,254 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Replace your current _toggleSectionExpansion with this optimized version
+void _toggleSectionExpansion(String title) {
+  // Play tap/click sound effect
+  HapticFeedback.selectionClick();
+  
+  // Only update the specific section's state, don't rebuild everything
+  final isCurrentlyExpanded = _expandedSections[title] ?? true;
+  
+  // Move animation outside setState to separate animation from layout rebuilds
+  if (isCurrentlyExpanded) {
+    _animationControllers[title]?.reverse();
+  } else {
+    _animationControllers[title]?.forward();
+  }
+  
+  // Delay the actual state update until AFTER animation starts
+  Future.microtask(() {
+    if (mounted) {
+      setState(() {
+        // Only update this specific section's state
+        _expandedSections[title] = !isCurrentlyExpanded;
+      });
+    }
+  });
+}
+}
+
+// Create a stateful wrapper widget for each section to isolate rebuilds
+class _SectionWrapper extends StatefulWidget {
+  final String title;
+  final List<Assignment> assignments;
+  final bool initiallyExpanded;
+  final AnimationController controller;
+  final IconData icon;
+  final Color color;
+  
+  const _SectionWrapper({
+    required this.title,
+    required this.assignments,
+    required this.initiallyExpanded,
+    required this.controller,
+    required this.icon,
+    required this.color,
+  });
+  
+  @override
+  _SectionWrapperState createState() => _SectionWrapperState();
+}
+
+class _SectionWrapperState extends State<_SectionWrapper> {
+  late bool _isExpanded;
+  
   @override
   void initState() {
     super.initState();
-    // Fetch group names when assignments are loaded
-    if (_authService.currentUser != null) {
-      _assignmentService.getUserAssignments(_authService.currentUser!.uid)
-        .listen((assignments) {
-          for (var assignment in assignments) {
-            _fetchGroupName(assignment.groupId);
-          }
-        });
+    _isExpanded = widget.initiallyExpanded;
+    
+    // Initialize controller immediately to match expected state
+    if (_isExpanded && widget.controller.value == 0.0) {
+      widget.controller.value = 1.0;
+    } else if (!_isExpanded && widget.controller.value == 1.0) {
+      widget.controller.value = 0.0;
     }
+    
+    // Listen to controller to update local state without triggering parent rebuilds
+    widget.controller.addStatusListener(_handleStatusChange);
+  }
+  
+  @override
+  void dispose() {
+    widget.controller.removeStatusListener(_handleStatusChange);
+    super.dispose();
+  }
+  
+  void _handleStatusChange(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && _isExpanded) {
+      setState(() => _isExpanded = false);
+    } else if (status == AnimationStatus.completed && !_isExpanded) {
+      setState(() => _isExpanded = true);
+    }
+  }
+  
+  void _toggleExpansion() {
+    // Skip if already animating
+    if (widget.controller.isAnimating) return;
+    
+    // Add haptic feedback and sound effect
+    HapticFeedback.selectionClick();
+    
+    if (_isExpanded) {
+      widget.controller.reverse();
+    } else {
+      widget.controller.forward();
+    }
+    
+    // Update state only after animation starts
+    Future.microtask(() {
+      if (mounted) {
+        setState(() => _isExpanded = !_isExpanded);
+      }
+    });
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    // Post-frame callback for animation control - just like calendar screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.controller.isAnimating) return; // Skip if already animating
+      
+      if (_isExpanded && widget.controller.status != AnimationStatus.completed && 
+          widget.controller.status != AnimationStatus.forward) {
+        widget.controller.forward();
+      } else if (!_isExpanded && widget.controller.status != AnimationStatus.dismissed && 
+                widget.controller.status != AnimationStatus.reverse) {
+        widget.controller.reverse();
+      }
+    });
+    
+    return Column(
+      children: [
+        // Header
+        GestureDetector(
+          onTap: _toggleExpansion,
+          child: _buildHeader(context),
+        ),
+        // Content - use AnimatedBuilder with ClipRect like in calendar_screen
+        RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: widget.controller,
+            child: Column(
+              children: widget.assignments.map((assignment) => 
+                _buildAssignmentTile(context, assignment)
+              ).toList(),
+            ),
+            builder: (context, child) {
+              return ClipRect(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  heightFactor: widget.controller.value,
+                  child: child,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Fixed _buildHeader method
+  Widget _buildHeader(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  widget.color.withOpacity(isDarkMode ? 0.25 : 0.15),
+                  widget.color.withOpacity(isDarkMode ? 0.15 : 0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: isDarkMode
+                  ? Border.all(
+                      color: widget.color.withOpacity(0.3),
+                      width: 0.5,
+                    )
+                  : null,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: widget.color.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(widget.icon, size: 14, color: widget.color),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: widget.color,
+                      letterSpacing: 0.25,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${widget.assignments.length} ${widget.assignments.length == 1 ? 'item' : 'items'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: widget.color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedRotation(
+                    turns: _isExpanded ? 0.0 : 0.5,
+                    duration: const Duration(milliseconds: 300),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: widget.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // Fixed assignment tile method
+  Widget _buildAssignmentTile(BuildContext context, Assignment assignment) {
+    // Here we need to get access to the parent class's method
+    // Since we can't directly access it, we need a workaround
+    final homeScreen = context.findAncestorStateOfType<_HomeScreenState>();
+    if (homeScreen != null) {
+      return homeScreen._buildAssignmentTile(context, assignment);
+    }
+    
+    // Fallback in case we can't find the parent
+    return ListTile(
+      title: Text(assignment.name),
+      subtitle: Text(assignment.className),
+    );
   }
 }
 

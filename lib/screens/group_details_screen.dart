@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart'; // Import for sound effects
 import '../models/group.dart';
 import '../models/assignment.dart';
 import '../services/assignment_service.dart';
@@ -24,13 +25,23 @@ class GroupDetailsScreen extends StatefulWidget {
   State<GroupDetailsScreen> createState() => _GroupDetailsScreenState();
 }
 
-class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTickerProviderStateMixin {
+class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProviderStateMixin {
   final AssignmentService _assignmentService = AssignmentService();
   final AuthService _authService = AuthService();
   final GroupService _groupService = GroupService();
   final ChatService _chatService = ChatService();
   final TaskService _taskService = TaskService();
   final TextEditingController _messageController = TextEditingController();
+  
+  // Add section expansion state map like in calendar_screen.dart
+  final Map<String, bool> _expandedSections = {
+    'Overdue': true,
+    'Due Soon': true,
+    'Upcoming': true,
+  };
+  
+  // Add animation controllers map
+  final Map<String, AnimationController> _animationControllers = {};
   
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -69,12 +80,51 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
       parent: _animationController,
       curve: Curves.easeInOut,
     ));
+    
+    // Initialize animation controllers for each section
+    _initAnimationControllers();
+  }
+  
+  void _initAnimationControllers() {
+    // Initialize controllers with default values
+    for (final section in ['Overdue', 'Due Soon', 'Upcoming']) {
+      final isExpanded = _expandedSections[section] ?? true;
+      _animationControllers[section] = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 250),
+        value: isExpanded ? 1.0 : 0.0,
+      );
+    }
+  }
+  
+  // Toggle section expansion with animation
+  void _toggleSectionExpansion(String title) {
+    // Play tap/click sound effect
+    HapticFeedback.selectionClick();
+    
+    final isCurrentlyExpanded = _expandedSections[title] ?? true;
+    
+    if (isCurrentlyExpanded) {
+      _animationControllers[title]?.reverse();
+    } else {
+      _animationControllers[title]?.forward();
+    }
+    
+    setState(() {
+      _expandedSections[title] = !isCurrentlyExpanded;
+    });
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     _messageController.dispose();
+    
+    // Dispose all section animation controllers
+    for (final controller in _animationControllers.values) {
+      controller.dispose();
+    }
+    
     super.dispose();
   }
 
@@ -184,6 +234,9 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
   }
   
   Widget _buildEmptyAssignmentsState() {
+    // Check if we're in dark mode to adjust styles
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -191,7 +244,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
           Icon(
             Icons.assignment_outlined,
             size: 56,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(isDarkMode ? 0.5 : 0.4),
           ),
           const SizedBox(height: 16),
           Text(
@@ -199,7 +252,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(isDarkMode ? 0.7 : 0.6),
             ),
             textAlign: TextAlign.center,
           ),
@@ -208,7 +261,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
             'Add your first assignment using the button below',
             style: TextStyle(
               fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(isDarkMode ? 0.8 : 1.0),
             ),
             textAlign: TextAlign.center,
           ),
@@ -218,6 +271,11 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
             icon: const Icon(Icons.add),
             label: const Text('Add Assignment'),
             style: OutlinedButton.styleFrom(
+              // For dark mode, add a more visible border
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.primary.withOpacity(isDarkMode ? 0.7 : 0.5),
+                width: isDarkMode ? 1.5 : 1.0,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -249,87 +307,51 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
       padding: const EdgeInsets.only(bottom: 100), // Make room for FABs
       children: [
         if (overdue.isNotEmpty) ...[
-          _buildEnhancedSectionHeader('Overdue', overdue.length, Colors.red, Icons.warning_rounded),
-          ...overdue.map((a) => _buildEnhancedAssignmentTile(a)),
+          RepaintBoundary(
+            child: _GroupSectionWrapper(
+              title: 'Overdue',
+              assignments: overdue,
+              initiallyExpanded: _expandedSections['Overdue'] ?? true,
+              controller: _animationControllers['Overdue']!,
+              icon: Icons.warning_rounded,
+              color: Colors.red,
+              // Now this matches the expected function signature
+              assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
+            ),
+          ),
         ],
         if (dueSoon.isNotEmpty) ...[
-          _buildEnhancedSectionHeader('Due Soon', dueSoon.length, Colors.orange, Icons.hourglass_bottom_rounded),
-          ...dueSoon.map((a) => _buildEnhancedAssignmentTile(a)),
+          RepaintBoundary(
+            child: _GroupSectionWrapper(
+              title: 'Due Soon',
+              assignments: dueSoon,
+              initiallyExpanded: _expandedSections['Due Soon'] ?? true,
+              controller: _animationControllers['Due Soon']!,
+              icon: Icons.hourglass_bottom_rounded,
+              color: Colors.orange,
+              assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
+            ),
+          ),
         ],
         if (upcoming.isNotEmpty) ...[
-          _buildEnhancedSectionHeader('Upcoming', upcoming.length, Theme.of(context).colorScheme.primary, Icons.event_rounded),
-          ...upcoming.map((a) => _buildEnhancedAssignmentTile(a)),
+          RepaintBoundary(
+            child: _GroupSectionWrapper(
+              title: 'Upcoming',
+              assignments: upcoming,
+              initiallyExpanded: _expandedSections['Upcoming'] ?? true,
+              controller: _animationControllers['Upcoming']!,
+              icon: Icons.event_rounded,
+              color: Theme.of(context).colorScheme.primary,
+              assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
+            ),
+          ),
         ],
       ],
     );
   }
   
-  Widget _buildEnhancedSectionHeader(String title, int count, Color color, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(0.15),
-              color.withOpacity(0.05),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 14, color: color),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: color,
-                letterSpacing: 0.25,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count ${count == 1 ? 'item' : 'items'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: color,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildEnhancedAssignmentTile(Assignment assignment) {
+  // Update the _buildEnhancedAssignmentTile method signature to accept context
+  Widget _buildEnhancedAssignmentTile(BuildContext context, Assignment assignment) {
     final bool isOverdue = assignment.dueDate.isBefore(DateTime.now());
     final int daysUntilDue = assignment.dueDate.difference(DateTime.now()).inDays;
     
@@ -354,32 +376,89 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
-    } else {
-      statusColor = Theme.of(context).colorScheme.primary;
-      statusIcon = Icons.event_rounded;
+    } else if (daysUntilDue <= 7) {
+      statusColor = Colors.teal;
+      statusIcon = Icons.hourglass_top_rounded;
       statusGradient = LinearGradient(
-        colors: [
-          Theme.of(context).colorScheme.primary.withOpacity(0.7),
-          Theme.of(context).colorScheme.primary,
-        ],
+        colors: [Colors.teal.shade300, Colors.teal.shade500],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+    } else {
+      statusColor = Colors.grey;
+      statusIcon = Icons.hourglass_empty_rounded;
+      statusGradient = LinearGradient(
+        colors: [Colors.grey.shade400, Colors.grey.shade600],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     }
+    
+    // Create the due date indicator widget
+    Widget dueDateIndicator = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: statusGradient,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            statusIcon,
+            size: 14,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            getDueInDays(assignment.dueDate),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+              fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+    
+    // Check if we're in dark mode
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: Theme.of(context).colorScheme.surface,
+          // Adjust background color based on theme brightness
+          color: isDarkMode 
+              ? Theme.of(context).colorScheme.surface.withOpacity(1.0)  // Full opacity in dark mode
+              : Theme.of(context).colorScheme.surface,
+          // Enhance shadow for dark mode
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
+              color: isDarkMode
+                  ? Colors.black.withOpacity(0.3)   // Darker shadow for dark mode
+                  : Colors.black.withOpacity(0.05), 
+              blurRadius: isDarkMode ? 12 : 10,
               offset: const Offset(0, 2),
+              spreadRadius: isDarkMode ? 1 : 0,     // Add spread in dark mode
+            ),
+            // Add a subtle glow effect in dark mode for better visibility
+            if (isDarkMode) BoxShadow(
+              color: statusColor.withOpacity(0.15),  // Colored glow based on status
+              blurRadius: 8,
+              offset: const Offset(0, 0),
+              spreadRadius: 0,
             ),
           ],
+          // Add subtle border for dark mode
+          border: isDarkMode
+              ? Border.all(
+                  color: Colors.grey.withOpacity(0.2),
+                  width: 0.5,
+                )
+              : null,
         ),
         margin: const EdgeInsets.only(bottom: 4),
         clipBehavior: Clip.hardEdge,
@@ -398,60 +477,35 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
                 padding: const EdgeInsets.all(4),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  title: Text(
-                    assignment.name,
-                    style: TextStyle(
-                      fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                      fontSize: 15,
-                    ),
+                  title: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start, // Align to top
+                    children: [
+                      // Assignment name on the left
+                      Expanded(
+                        child: Text(
+                          assignment.name,
+                          style: TextStyle(
+                            fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      // Due date indicator on the right with some top padding
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2), // Add 2px of top padding
+                        child: dueDateIndicator,
+                      ),
+                    ],
                   ),
                   subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          assignment.className,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            gradient: statusGradient,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: statusColor.withOpacity(0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                statusIcon,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                getDueInDays(assignment.dueDate),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white,
-                                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.only(top: 2), // Reduced top padding from 4 to 2
+                    child: Text(
+                      assignment.className,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   leading: Container(
@@ -474,18 +528,28 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
                       color: Colors.white,
                     ),
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.more_vert_rounded, size: 20),
-                    onPressed: () => _showAssignmentOptions(assignment),
-                    splashRadius: 24,
+                  trailing: Padding(
+                    padding: const EdgeInsets.only(top: 0), // Add same top padding as due date indicator
+                    child: IconButton(
+                      icon: const Icon(Icons.edit_rounded, size: 20),
+                      onPressed: () => _showEditAssignmentDialog(assignment),
+                      splashRadius: 24,
+                      padding: EdgeInsets.zero, // Remove default padding
+                      constraints: const BoxConstraints(), // Remove default constraints
+                      visualDensity: VisualDensity.compact, // Make the button more compact
+                    ),
                   ),
                 ),
               ),
             ),
-            EmbeddedTasksList(
-              assignmentId: assignment.id,
-              userId: _authService.currentUser?.uid ?? '',
-              taskService: _taskService,
+            // Move embedded tasks list higher by reducing padding
+            Padding(
+              padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
+              child: EmbeddedTasksList(
+                assignmentId: assignment.id,
+                userId: _authService.currentUser?.uid ?? '',
+                taskService: _taskService,
+              ),
             ),
           ],
         ),
@@ -960,40 +1024,211 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with SingleTick
       ),
     );
   }
+}
 
-  void _showAssignmentOptions(Assignment assignment) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Edit Assignment'),
-              onTap: () {
-                Navigator.pop(context);
-                _showEditAssignmentDialog(assignment);
-              },
+// Add this wrapper widget after the _GroupDetailsScreenState class
+class _GroupSectionWrapper extends StatefulWidget {
+  final String title;
+  final List<Assignment> assignments;
+  final bool initiallyExpanded;
+  final AnimationController controller;
+  final IconData icon;
+  final Color color;
+  final Function(BuildContext, Assignment) assignmentTileBuilder;
+  
+  const _GroupSectionWrapper({
+    required this.title,
+    required this.assignments,
+    required this.initiallyExpanded,
+    required this.controller,
+    required this.icon,
+    required this.color,
+    required this.assignmentTileBuilder,
+  });
+  
+  @override
+  _GroupSectionWrapperState createState() => _GroupSectionWrapperState();
+}
+
+class _GroupSectionWrapperState extends State<_GroupSectionWrapper> {
+  late bool _isExpanded;
+  
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.initiallyExpanded;
+    
+    // Initialize controller immediately to match expected state
+    if (_isExpanded && widget.controller.value == 0.0) {
+      widget.controller.value = 1.0;
+    } else if (!_isExpanded && widget.controller.value == 1.0) {
+      widget.controller.value = 0.0;
+    }
+    
+    // Listen to controller to update local state without triggering parent rebuilds
+    widget.controller.addStatusListener(_handleStatusChange);
+  }
+  
+  @override
+  void dispose() {
+    widget.controller.removeStatusListener(_handleStatusChange);
+    super.dispose();
+  }
+  
+  void _handleStatusChange(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && _isExpanded) {
+      setState(() => _isExpanded = false);
+    } else if (status == AnimationStatus.completed && !_isExpanded) {
+      setState(() => _isExpanded = true);
+    }
+  }
+  
+  void _toggleExpansion() {
+    // Skip if already animating
+    if (widget.controller.isAnimating) return;
+    
+    // Add haptic feedback and sound effect
+    HapticFeedback.selectionClick();
+    
+    if (_isExpanded) {
+      widget.controller.reverse();
+    } else {
+      widget.controller.forward();
+    }
+    
+    // Update state only after animation starts
+    Future.microtask(() {
+      if (mounted) {
+        setState(() => _isExpanded = !_isExpanded);
+      }
+    });
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    // Post-frame callback for animation control
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.controller.isAnimating) return; // Skip if already animating
+      
+      if (_isExpanded && widget.controller.status != AnimationStatus.completed && 
+          widget.controller.status != AnimationStatus.forward) {
+        widget.controller.forward();
+      } else if (!_isExpanded && widget.controller.status != AnimationStatus.dismissed && 
+                widget.controller.status != AnimationStatus.reverse) {
+        widget.controller.reverse();
+      }
+    });
+    
+    return Column(
+      children: [
+        // Header
+        GestureDetector(
+          onTap: _toggleExpansion,
+          child: _buildHeader(context),
+        ),
+        // Content
+        RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: widget.controller,
+            child: Column(
+              children: widget.assignments.map<Widget>((assignment) => 
+                widget.assignmentTileBuilder(context, assignment)
+              ).toList(),
             ),
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete Assignment'),
-              onTap: () async {
-                Navigator.pop(context);
-                final confirmed = await _showDeleteConfirmation(context);
-                if (confirmed == true) {
-                  await _assignmentService.deleteAssignment(
-                    groupId: widget.group.id,
-                    assignmentId: assignment.id,
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Assignment deleted')),
-                  );
-                }
-              },
+            builder: (context, child) {
+              return ClipRect(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  heightFactor: widget.controller.value,
+                  child: child,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildHeader(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  widget.color.withOpacity(isDarkMode ? 0.25 : 0.15),
+                  widget.color.withOpacity(isDarkMode ? 0.15 : 0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: isDarkMode
+                  ? Border.all(
+                      color: widget.color.withOpacity(0.3),
+                      width: 0.5,
+                    )
+                  : null,
             ),
-          ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: widget.color.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(widget.icon, size: 14, color: widget.color),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: widget.color,
+                      letterSpacing: 0.25,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${widget.assignments.length} ${widget.assignments.length == 1 ? 'item' : 'items'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: widget.color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedRotation(
+                    turns: _isExpanded ? 0.0 : 0.5,
+                    duration: const Duration(milliseconds: 300),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: widget.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

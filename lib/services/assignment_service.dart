@@ -255,4 +255,59 @@ class AssignmentService {
           return upcomingAssignments;
         });
   }
+
+  Future<void> markAssignmentComplete({
+    required String assignmentId,
+    required String userId,
+    bool complete = true,
+  }) async {
+    if (assignmentId.isEmpty || userId.isEmpty) {
+      throw ArgumentError('Assignment ID and User ID cannot be empty');
+    }
+    
+    try {
+      final documentId = '${assignmentId}_$userId';
+      final docRef = _firestore.collection('completedAssignments').doc(documentId);
+      
+      if (complete) {
+        // Mark as complete
+        await docRef.set({
+          'assignmentId': assignmentId,
+          'userId': userId,
+          'completedAt': FieldValue.serverTimestamp(),
+        });
+        
+        // Add debug print
+        print('Assignment marked complete: $documentId');
+      } else {
+        // Mark as incomplete by deleting the document
+        await docRef.delete();
+        
+        // Add debug print
+        print('Assignment marked incomplete: $documentId');
+      }
+    } catch (e) {
+      print('Error marking assignment ${complete ? "complete" : "incomplete"}: $e');
+      throw e;
+    }
+  }
+
+  Stream<bool> isAssignmentCompleted(String assignmentId, String userId) {
+    if (assignmentId.isEmpty || userId.isEmpty) {
+      // Return a stream of false if either ID is empty
+      return Stream.value(false);
+    }
+    
+    final documentId = '${assignmentId}_$userId';
+    return _firestore
+        .collection('completedAssignments')
+        .doc(documentId)
+        .snapshots()
+        .map((doc) {
+          final exists = doc.exists;
+          // Add debug print
+          print('Checking completion status for $documentId: $exists');
+          return exists;
+        });
+  }
 }

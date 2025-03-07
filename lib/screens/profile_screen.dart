@@ -472,7 +472,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Column(
               children: [
                 Text(
-                  'Assignment Reminder App',
+                  'Chronos',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,

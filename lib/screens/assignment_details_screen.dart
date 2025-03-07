@@ -3,6 +3,7 @@ import '../models/assignment.dart';
 import '../models/task.dart';
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
+import '../services/assignment_service.dart';
 import 'package:animations/animations.dart';
 
 class AssignmentDetailsScreen extends StatefulWidget {
@@ -20,7 +21,9 @@ class AssignmentDetailsScreen extends StatefulWidget {
 class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
   final TaskService _taskService = TaskService();
   final AuthService _authService = AuthService();
+  final AssignmentService _assignmentService = AssignmentService();
   final _taskController = TextEditingController();
+  bool _loadingCompletion = false;
 
   @override
   void dispose() {
@@ -98,9 +101,13 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.assignment.name),
+        // Replace assignment name with generic title
+        title: const Text('Assignment Details'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          // Intentionally left empty to remove the completion button
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -145,7 +152,9 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
                 child: Column(
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Status icon container
                         Container(
                           width: 48,
                           height: 48,
@@ -174,47 +183,166 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
                           ),
                         ),
                         const SizedBox(width: 16),
+                        // Middle section with assignment and class names
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // Assignment name
                               Text(
-                                widget.assignment.className,
+                                widget.assignment.name,
                                 style: const TextStyle(
                                   fontSize: 20,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
+                              // Class name (smaller size)
+                              Text(
+                                widget.assignment.className,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      statusColor.withOpacity(0.8),
-                                      statusColor,
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Due date chip on the right side
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                statusColor.withOpacity(0.8),
+                                statusColor,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: statusColor.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Due Date',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white.withOpacity(0.9),
                                 ),
-                                child: Text(
-                                  'Due ${widget.assignment.dueDate.toString().split(' ')[0]}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.white,
-                                    fontWeight: isOverdue ? FontWeight.w500 : null,
-                                  ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.assignment.dueDate.toString().split(' ')[0],
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                  fontWeight: isOverdue ? FontWeight.w600 : FontWeight.w500,
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ],
+                    ),
+                    // Add completion button below the details if needed
+                    StreamBuilder<bool>(
+                      stream: _assignmentService.isAssignmentCompleted(
+                        widget.assignment.id,
+                        userId,
+                      ),
+                      builder: (context, snapshot) {
+                        final isCompleted = snapshot.data ?? false;
+                        final isLoading = _loadingCompletion;
+                        
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: Container(
+                            width: double.infinity,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              color: isCompleted
+                                  ? Colors.green.withOpacity(0.1)
+                                  : Colors.grey.withOpacity(0.1),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: isLoading ? null : () async {
+                                  setState(() => _loadingCompletion = true);
+                                  try {
+                                    await _assignmentService.markAssignmentComplete(
+                                      assignmentId: widget.assignment.id,
+                                      userId: userId,
+                                      complete: !isCompleted,
+                                    );
+                                  } finally {
+                                    if (mounted) setState(() => _loadingCompletion = false);
+                                  }
+                                },
+                                child: Center(
+                                  child: isLoading
+                                    ? SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(
+                                            isCompleted
+                                                ? Colors.green
+                                                : Colors.grey.shade700,
+                                          ),
+                                        ),
+                                      )
+                                    : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isCompleted
+                                              ? Icons.check_circle_rounded
+                                              : Icons.radio_button_unchecked_rounded,
+                                          size: 18,
+                                          color: isCompleted
+                                              ? Colors.green
+                                              : Colors.grey.shade700,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          isCompleted
+                                              ? 'Mark as Incomplete'
+                                              : 'Mark as Complete',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: isCompleted
+                                                ? Colors.green
+                                                : Colors.grey.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -384,70 +512,167 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
   }
 
   Widget _buildTasksSection(String title, List<Task> tasks) {
+    final Color sectionColor = title == 'Pending' 
+        ? Colors.amber.shade700
+        : Colors.green.shade600;
+        
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.5,
-              color: title == 'Pending' 
-                  ? Colors.yellow.shade800
-                  : Colors.green.shade600,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  sectionColor.withOpacity(0.15),
+                  sectionColor.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: sectionColor.withOpacity(0.2),
+                width: 0.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: sectionColor.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    title == 'Pending' ? Icons.pending_actions_rounded : Icons.check_circle_outline_rounded,
+                    size: 14,
+                    color: sectionColor,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: sectionColor,
+                    letterSpacing: 0.25,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: sectionColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${tasks.length} ${tasks.length == 1 ? 'task' : 'tasks'}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: sectionColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        ...tasks.map((task) => _buildEnhancedTaskTile(task)),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: Column(
+            children: tasks.map((task) => _buildEnhancedTaskTile(task)).toList(),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildEnhancedTaskTile(Task task) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
+              spreadRadius: 0.5,
             ),
           ],
-        ),
-        child: ListTile(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3),
+            width: 0.5,
           ),
-          leading: Transform.scale(
-            scale: 0.9,
-            child: Checkbox(
-              value: task.isCompleted,
-              onChanged: (value) => _taskService.toggleTaskCompletion(task),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _taskService.toggleTaskCompletion(task),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+              child: ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                leading: Transform.scale(
+                  scale: 0.9,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: task.isCompleted
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.transparent,
+                    ),
+                    child: Checkbox(
+                      value: task.isCompleted,
+                      onChanged: (value) => _taskService.toggleTaskCompletion(task),
+                      shape: const CircleBorder(),
+                      side: BorderSide(
+                        color: task.isCompleted 
+                            ? Colors.green
+                            : Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                        width: 1.5,
+                      ),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      fillColor: MaterialStateProperty.resolveWith((states) {
+                        if (states.contains(MaterialState.selected)) {
+                          return Colors.green;
+                        }
+                        return null;
+                      }),
+                    ),
+                  ),
+                ),
+                title: Text(
+                  task.title,
+                  style: TextStyle(
+                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                    color: task.isCompleted
+                        ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                  onPressed: () => _taskService.deleteTask(task.id),
+                  visualDensity: VisualDensity.compact,
+                  splashRadius: 24,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               ),
             ),
-          ),
-          title: Text(
-            task.title,
-            style: TextStyle(
-              decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-              color: task.isCompleted
-                  ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
-                  : null,
-            ),
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_outline_rounded),
-            onPressed: () => _taskService.deleteTask(task.id),
-            visualDensity: VisualDensity.compact,
           ),
         ),
       ),

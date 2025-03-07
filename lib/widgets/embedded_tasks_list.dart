@@ -25,7 +25,7 @@ class EmbeddedTasksList extends StatelessWidget {
         if (pendingTasks.isEmpty) return const SizedBox.shrink();
 
         return Padding(
-          padding: const EdgeInsets.only(left: 72, right: 16),
+          padding: const EdgeInsets.only(left: 72, right: 16, top: 0, bottom: 4), // Reduced top padding to 0
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: pendingTasks.map((task) => _buildTaskItem(context, task)).toList(),
@@ -37,7 +37,7 @@ class EmbeddedTasksList extends StatelessWidget {
 
   Widget _buildTaskItem(BuildContext context, Task task) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2), // Reduced vertical padding from 4 to 2
       child: Row(
         children: [
           SizedBox(
@@ -48,6 +48,19 @@ class EmbeddedTasksList extends StatelessWidget {
               onChanged: (_) => taskService.toggleTaskCompletion(task),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
+              shape: const CircleBorder(),
+              side: BorderSide(
+                color: task.isCompleted 
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                width: 1.5,
+              ),
+              fillColor: MaterialStateProperty.resolveWith((states) {
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.green;
+                }
+                return null;
+              }),
             ),
           ),
           const SizedBox(width: 8),

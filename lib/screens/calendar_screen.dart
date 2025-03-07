@@ -16,7 +16,7 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStateMixin {
   final AssignmentService _assignmentService = AssignmentService();
   final AuthService _authService = AuthService();
   final TaskService _taskService = TaskService();
@@ -27,6 +27,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Map<DateTime, List<Assignment>> _assignments = {};
   bool _isLoading = true;
   
+  // Add section expansion state map like in home_screen.dart
+  final Map<String, bool> _expandedSections = {
+    'Overdue': true,
+    'Due Today': true,
+    'Due Soon': true,
+    'Later This Week': true, 
+  };
+  
+  // Add animation controllers map
+  final Map<String, AnimationController> _animationControllers = {};
+  
   @override
   void initState() {
     super.initState();
@@ -35,6 +46,82 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _focusedDay.month,
       _focusedDay.day,
     );
+    
+    // Initialize animation controllers for each section
+    _animationControllers['Overdue'] = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+      value: 1.0, // Start expanded
+    );
+    
+    _animationControllers['Due Today'] = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+      value: 1.0, // Start expanded
+    );
+    
+    _animationControllers['Due Soon'] = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+      value: 1.0, // Start expanded
+    );
+    
+    _animationControllers['Later This Week'] = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+      value: 1.0, // Start expanded
+    );
+    
+    // Initialize for the current selected day section
+    _initSelectedDayController();
+  }
+  
+  // Create a separate method to initialize or update the selected day controller
+  void _initSelectedDayController() {
+    final String selectedDayTitle = 'Due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}';
+    
+    // Only create if doesn't exist
+    if (!_animationControllers.containsKey(selectedDayTitle)) {
+      _animationControllers[selectedDayTitle] = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 250),
+        value: 1.0, // Start expanded
+      );
+      
+      // Also initialize its expanded state
+      _expandedSections[selectedDayTitle] = true;
+    }
+  }
+  
+  // Clean up any old selected day controllers that are no longer needed
+  void _cleanupOldControllers() {
+    // Get current selected day title
+    final String currentDayTitle = 'Due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}';
+    
+    // Find old selected day controllers
+    final oldControllers = _animationControllers.keys
+        .where((key) => key.startsWith('Due on ') && key != currentDayTitle)
+        .toList();
+    
+    // Remove old controllers that aren't the current day
+    for (final key in oldControllers) {
+      final controller = _animationControllers[key];
+      if (controller != null) {
+        controller.dispose();
+        _animationControllers.remove(key);
+      }
+      // Also remove from expanded sections map
+      _expandedSections.remove(key);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Dispose all animation controllers
+    for (final controller in _animationControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
   
   @override
@@ -313,6 +400,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
           setState(() {
             _selectedDay = selectedDay;
             _focusedDay = focusedDay;
+            
+            // Initialize controller for the newly selected day
+            _initSelectedDayController();
+            
+            // Optionally clean up old controllers
+            _cleanupOldControllers();
           });
         },
         
@@ -566,19 +659,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
             children: [
               if (overdue.isNotEmpty) ...[
                 _buildEnhancedSectionHeader('Overdue', Icons.warning_rounded, Colors.red, overdue.length),
-                ...overdue.map((a) => _buildEnhancedAssignmentTile(a)),
+                _buildAnimatedAssignmentsList('Overdue', overdue),
               ],
               if (dueToday.isNotEmpty) ...[
                 _buildEnhancedSectionHeader('Due Today', Icons.event_rounded, Theme.of(context).colorScheme.primary, dueToday.length),
-                ...dueToday.map((a) => _buildEnhancedAssignmentTile(a)),
+                _buildAnimatedAssignmentsList('Due Today', dueToday),
               ],
               if (dueSoon.isNotEmpty) ...[
                 _buildEnhancedSectionHeader('Due Soon', Icons.upcoming_rounded, Colors.orange, dueSoon.length),
-                ...dueSoon.map((a) => _buildEnhancedAssignmentTile(a)),
+                _buildAnimatedAssignmentsList('Due Soon', dueSoon),
               ],
               if (dueThisWeek.isNotEmpty) ...[
                 _buildEnhancedSectionHeader('Later This Week', Icons.date_range_rounded, Colors.teal, dueThisWeek.length),
-                ...dueThisWeek.map((a) => _buildEnhancedAssignmentTile(a)),
+                _buildAnimatedAssignmentsList('Later This Week', dueThisWeek),
               ],
             ],
           );
@@ -600,16 +693,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
             );
           }
 
+          // Ensure we have a valid section title that matches our maps
+          final String sectionTitle = 'Due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}';
+          
+          // Make sure we have a controller for this title
+          _initSelectedDayController();
+
           return ListView(
             padding: const EdgeInsets.only(bottom: 100), // Extra padding for bottom nav
             children: [
               _buildEnhancedSectionHeader(
-                'Due on ${_getMonthName(_selectedDay.month)} ${_selectedDay.day}', 
+                sectionTitle, 
                 Icons.event_rounded, 
                 Theme.of(context).colorScheme.primary, 
                 selectedDayAssignments.length
               ),
-              ...selectedDayAssignments.map((a) => _buildEnhancedAssignmentTile(a)),
+              _buildAnimatedAssignmentsList(
+                sectionTitle, 
+                selectedDayAssignments
+              ),
             ],
           );
         }
@@ -686,68 +788,150 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  // Enhanced section header with gradient and rounded corners
+  // Enhanced section header with collapsible functionality
   Widget _buildEnhancedSectionHeader(String title, IconData icon, Color color, int count) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(0.15),
-              color.withOpacity(0.05),
-            ],
-          ),
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isExpanded = _expandedSections[title] ?? true;
+    
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+        child: Material(
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
+          child: InkWell(
+            onTap: () {
+              // Use a callback to avoid immediate setState impact
+              Future.microtask(() {
+                setState(() {
+                  _expandedSections[title] = !isExpanded;
+                });
+              });
+            },
+            borderRadius: BorderRadius.circular(18),
+            child: DecoratedBox(
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withOpacity(isDarkMode ? 0.25 : 0.15),
+                    color.withOpacity(isDarkMode ? 0.15 : 0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: isDarkMode
+                    ? Border.all(
+                        color: color.withOpacity(0.3),
+                        width: 0.5,
+                      )
+                    : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDarkMode ? 0.1 : 0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Icon(icon, size: 14, color: color),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: color,
-                letterSpacing: 0.25,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count ${count == 1 ? 'item' : 'items'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: color,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: 14, color: color),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                        letterSpacing: 0.25,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$count ${count == 1 ? 'item' : 'items'}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.0 : 0.5,
+                      duration: const Duration(milliseconds: 300),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: color,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+
+  // Add method to build animated assignments list with pre-built content
+  Widget _buildAnimatedAssignmentsList(String sectionTitle, List<Assignment> assignments) {
+    final controller = _animationControllers[sectionTitle];
+    if (controller == null) {
+      // If controller doesn't exist (which shouldn't happen since we initialize all of them),
+      // just return the assignments directly without animation
+      return Column(
+        children: assignments.map((a) => _buildEnhancedAssignmentTile(a)).toList(),
+      );
+    }
+    
+    final isExpanded = _expandedSections[sectionTitle] ?? true;
+    
+    // Move animation triggers outside the build cycle using post-frame callback
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isExpanded && controller.status != AnimationStatus.completed && 
+          controller.status != AnimationStatus.forward) {
+        controller.forward();
+      } else if (!isExpanded && controller.status != AnimationStatus.dismissed && 
+                controller.status != AnimationStatus.reverse) {
+        controller.reverse();
+      }
+    });
+    
+    // Pre-build content to avoid rebuilding during animation
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: controller,
+        child: Column(
+          children: assignments.map((a) => _buildEnhancedAssignmentTile(a)).toList(),
+        ),
+        builder: (context, child) {
+          return ClipRect(
+            child: Align(
+              alignment: Alignment.topCenter,
+              heightFactor: controller.value,
+              child: child,
+            ),
+          );
+        },
       ),
     );
   }
@@ -797,19 +981,71 @@ class _CalendarScreenState extends State<CalendarScreen> {
       );
     }
     
+    // Create the due date indicator widget
+    Widget dueDateIndicator = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: statusGradient,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            statusIcon,
+            size: 14,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            app_date_utils.getDueInDays(assignment.dueDate),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+              fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+    
+    // Check if we're in dark mode
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: Theme.of(context).colorScheme.surface,
+          // Adjust background color based on theme brightness
+          color: isDarkMode 
+              ? Theme.of(context).colorScheme.surface.withOpacity(1.0)  // Full opacity in dark mode
+              : Theme.of(context).colorScheme.surface,
+          // Enhance shadow for dark mode
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
+              color: isDarkMode 
+                  ? Colors.black.withOpacity(0.3)   // Darker shadow for dark mode
+                  : Colors.black.withOpacity(0.05),
+              blurRadius: isDarkMode ? 12 : 10,
               offset: const Offset(0, 2),
+              spreadRadius: isDarkMode ? 1 : 0,     // Add spread in dark mode
+            ),
+            // Add a subtle glow effect in dark mode for better visibility
+            if (isDarkMode) BoxShadow(
+              color: statusColor.withOpacity(0.15),  // Colored glow based on status
+              blurRadius: 8,
+              offset: const Offset(0, 0),
+              spreadRadius: 0,
             ),
           ],
+          // Add subtle border for dark mode
+          border: isDarkMode
+              ? Border.all(
+                  color: Colors.grey.withOpacity(0.2),
+                  width: 0.5,
+                )
+              : null,
         ),
         margin: const EdgeInsets.only(bottom: 4),
         clipBehavior: Clip.hardEdge,
@@ -828,60 +1064,35 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 padding: const EdgeInsets.all(4),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  title: Text(
-                    assignment.name,
-                    style: TextStyle(
-                      fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                      fontSize: 16,
-                    ),
+                  title: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start, // Align to top
+                    children: [
+                      // Assignment name on the left
+                      Expanded(
+                        child: Text(
+                          assignment.name,
+                          style: TextStyle(
+                            fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      // Due date indicator on the right with some top padding
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2), // Add 2px of top padding
+                        child: dueDateIndicator,
+                      ),
+                    ],
                   ),
                   subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          assignment.className,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            gradient: statusGradient,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: statusColor.withOpacity(0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                statusIcon,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                app_date_utils.getDueInDays(assignment.dueDate),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white,
-                                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.only(top: 2), // Reduced top padding from 4 to 2
+                    child: Text(
+                      assignment.className,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   leading: Container(
@@ -907,11 +1118,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
               ),
             ),
-            // Add embedded tasks list with styling consistent with new design
-            EmbeddedTasksList(
-              assignmentId: assignment.id,
-              userId: _authService.currentUser?.uid ?? '',
-              taskService: _taskService,
+            
+            // Move embedded tasks list higher by reducing padding
+            Padding(
+              padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
+              child: EmbeddedTasksList(
+                assignmentId: assignment.id,
+                userId: _authService.currentUser?.uid ?? '',
+                taskService: _taskService,
+              ),
             ),
           ],
         ),
@@ -1074,34 +1289,51 @@ class _CalendarScreenState extends State<CalendarScreen> {
       statusIcon = Icons.hourglass_empty;
     }
     
+    // Check for dark mode
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Column(
       children: [
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            // Add subtle highlighting in dark mode for better visibility
+            color: isDarkMode && isOverdue 
+                ? Colors.red.withOpacity(0.05) 
+                : null,
+            border: isDarkMode 
+                ? Border(
+                    left: BorderSide(
+                      color: statusColor.withOpacity(0.5),
+                      width: 3,
+                    ),
+                  )
+                : null,
+          ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-            title: Text(
-              assignment.name,
-              style: TextStyle(
-                fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                fontSize: 15,
-              ),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    assignment.className,
+            title: Row(
+              crossAxisAlignment: CrossAxisAlignment.start, // Align to top
+              children: [
+                // Assignment name on the left
+                Expanded(
+                  child: Text(
+                    assignment.name,
                     style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                      fontSize: 15,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
+                ),
+                // Status indicator on the right
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
                     app_date_utils.getDueInDays(assignment.dueDate),
                     style: TextStyle(
                       fontSize: 12,
@@ -1109,16 +1341,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
                     ),
                   ),
-                ],
+                ),
+              ],
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 2), // Reduced top padding from 4 to 2
+              child: Text(
+                assignment.className,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             leading: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
+                color: statusColor.withOpacity(isDarkMode ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: statusColor.withOpacity(0.3)),
+                border: Border.all(
+                  color: statusColor.withOpacity(isDarkMode ? 0.5 : 0.3),
+                  width: isDarkMode ? 1.0 : 0.5,
+                ),
               ),
               child: Icon(
                 statusIcon, // Use our new status-specific icon
@@ -1136,10 +1381,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
             },
           ),
         ),
-        EmbeddedTasksList(
-          assignmentId: assignment.id,
-          userId: _authService.currentUser?.uid ?? '',
-          taskService: _taskService,
+        Padding(
+          padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
+          child: EmbeddedTasksList(
+            assignmentId: assignment.id,
+            userId: _authService.currentUser?.uid ?? '',
+            taskService: _taskService,
+          ),
         ),
       ],
     );
@@ -1151,46 +1399,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return monthNames[month];
-  }
-
-  // Add this method inside _CalendarScreenState class
-  Widget _buildSectionHeader(String title, IconData icon, Color color, int count) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: color,
-                  letterSpacing: 0.25,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$count ${count == 1 ? 'item' : 'items'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: Theme.of(context).dividerColor.withOpacity(0.2),
-          ),
-        ],
-      ),
-    );
   }
 
   bool _isOverdue(DateTime date) {
