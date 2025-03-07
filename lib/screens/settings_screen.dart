@@ -127,38 +127,25 @@ class SettingsScreen extends StatelessWidget {
                       },
                     ),
                   ),
-                  _buildDivider(context),
-                  _buildInfoTile(
-                    context,
-                    title: 'Feedback',
-                    icon: Icons.comment_rounded,
-                    content: Text(
-                      'Send your feedback',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    onTap: () {
-                      _showFeedbackDialog(context);
-                    },
-                  ),
                 ],
               ),
             ),
+            // About Card with enhanced styling
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
               child: Card(
-                elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ListTile(
-                      title: const Text('Send Feedback'),
-                      leading: const Icon(Icons.feedback_outlined),
+                      title: const Text('Feedback'),
+                      leading: Icon(
+                        Icons.feedback_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => _showFeedbackDialog(context),
                     ),
@@ -495,34 +482,5 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-  
-  // Helper method to send feedback via email
-  Future<void> _sendFeedbackEmail(String feedbackMessage) async {
-    final Uri emailUri = Uri(
-      scheme: 'mailto',
-      path: 'zafir.ali05@gmail.com',
-      query: _encodeQueryParameters({
-        'subject': 'Assignment Reminder App Feedback',
-        'body': feedbackMessage,
-      }),
-    );
-    
-    try {
-      if (await canLaunchUrl(emailUri)) {
-        await launchUrl(emailUri);
-      }
-    } catch (e) {
-      print('Error launching email: $e');
-      // Fallback handling could be added here
-    }
-  }
-  
-  // Helper method to encode query parameters for email
-  String? _encodeQueryParameters(Map<String, String> params) {
-    return params.entries
-        .map((MapEntry<String, String> e) =>
-            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-        .join('&');
   }
 }

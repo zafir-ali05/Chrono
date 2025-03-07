@@ -114,65 +114,89 @@ class _CalendarScreenState extends State<CalendarScreen> {
     String monthName = _getMonthName(_focusedDay.month);
     
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.fromLTRB(16, 48, 16, 8), // Changed padding to match home screen
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Month and year with clean typography
+          // Main title with matching style
           Text(
-            '$monthName ${_focusedDay.year}',
+            'Calendar',
             style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
+              fontSize: 24,
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w700,
               color: Theme.of(context).colorScheme.onSurface,
             ),
+            textAlign: TextAlign.center,
           ),
-          
-          // Simple navigation row
+          const SizedBox(height: 4),
+          // Subtitle with matching style
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              'Stay Ahead of Your Schedule! 🗓️',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Month navigation row
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Today button with minimalist style
-              TextButton(
-                onPressed: () => setState(() {
-                  final now = DateTime.now();
-                  _focusedDay = now;
-                  _selectedDay = now;
-                }),
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.primary,
-                  minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+              Text(
+                '$monthName ${_focusedDay.year}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
-                child: const Text('Today'),
               ),
-              
-              // Navigation arrows with clean styling
-              IconButton(
-                icon: const Icon(Icons.navigate_before, size: 22),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                onPressed: () => setState(() {
-                  if (_focusedDay.month == 1) {
-                    _focusedDay = DateTime(_focusedDay.year - 1, 12, 1);
-                  } else {
-                    _focusedDay = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
-                  }
-                }),
-              ),
-              IconButton(
-                icon: const Icon(Icons.navigate_next, size: 22),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                onPressed: () => setState(() {
-                  if (_focusedDay.month == 12) {
-                    _focusedDay = DateTime(_focusedDay.year + 1, 1, 1);
-                  } else {
-                    _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
-                  }
-                }),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => setState(() {
+                      final now = DateTime.now();
+                      _focusedDay = now;
+                      _selectedDay = now;
+                    }),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Today'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.navigate_before, size: 22),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(() {
+                      if (_focusedDay.month == 1) {
+                        _focusedDay = DateTime(_focusedDay.year - 1, 12, 1);
+                      } else {
+                        _focusedDay = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+                      }
+                    }),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.navigate_next, size: 22),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(() {
+                      if (_focusedDay.month == 12) {
+                        _focusedDay = DateTime(_focusedDay.year + 1, 1, 1);
+                      } else {
+                        _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
+                      }
+                    }),
+                  ),
+                ],
               ),
             ],
           ),

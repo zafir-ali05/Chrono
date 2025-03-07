@@ -77,9 +77,40 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Column(
           children: [
+            // Simple Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 48, 16, 8), // Match search bar's left padding
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center, // Add this
+                children: [
+                  Text(
+                    'Upcoming Assignments',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    textAlign: TextAlign.center, // Add this
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity, // Makes the container take full width
+                    child: Text(
+                      'Stay on track and ace your deadlines! 🚀',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center, // Centers the text
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // Enhanced search bar with more rounded corners and subtle shadow
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),

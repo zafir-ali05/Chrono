@@ -180,32 +180,70 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent, // Make scaffold transparent to show gradient
-        body: StreamBuilder<List<Group>>(
-          stream: _groupService.getUserGroups(user.uid),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(
-                child: CircularProgressIndicator(
-                  // Customized progress indicator matching home screen
-                  strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.primary,
+        body: Column(
+          children: [
+            // Add header section
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 48, 16, 8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Classrooms',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-              );
-            }
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      'Join. Learn. Collaborate! 🏫',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Existing StreamBuilder content
+            Expanded(
+              child: StreamBuilder<List<Group>>(
+                stream: _groupService.getUserGroups(user.uid),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        // Customized progress indicator matching home screen
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    );
+                  }
 
-            if (snapshot.hasError) {
-              return _buildErrorWidget(context, snapshot.error);
-            }
+                  if (snapshot.hasError) {
+                    return _buildErrorWidget(context, snapshot.error);
+                  }
 
-            final groups = snapshot.data ?? [];
-            if (groups.isEmpty) {
-              return _buildEmptyState();
-            }
+                  final groups = snapshot.data ?? [];
+                  if (groups.isEmpty) {
+                    return _buildEmptyState();
+                  }
 
-            return _buildGroupList(groups);
-          },
+                  return _buildGroupList(groups);
+                },
+              ),
+            ),
+          ],
         ),
         floatingActionButton: SpeedDial(
           icon: Icons.add,

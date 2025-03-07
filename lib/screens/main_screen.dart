@@ -33,39 +33,33 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _currentIndex == 0
-              ? 'Upcoming Assignments'
-              : _currentIndex == 1
-                  ? 'Calendar'
-                  : _currentIndex == 2
-                      ? 'Classrooms' 
-                      : 'Profile',
-        ),
-        elevation: 0,
-      ),
-      body: PageTransitionSwitcher(
-        transitionBuilder: (
-          Widget child,
-          Animation<double> primaryAnimation,
-          Animation<double> secondaryAnimation,
-        ) {
-          return FadeThroughTransition(
-            animation: primaryAnimation,
-            secondaryAnimation: secondaryAnimation,
-            child: child,
-          );
-        },
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            const HomeScreen(),
-            const CalendarScreen(),
-            const ClassroomsScreen(),
-            ProfileScreen(initialIsSignUp: widget.isSignUp),
-          ],
-        ),
+      body: Column(
+        children: [
+          Expanded(
+            child: PageTransitionSwitcher(
+              transitionBuilder: (
+                Widget child,
+                Animation<double> primaryAnimation,
+                Animation<double> secondaryAnimation,
+              ) {
+                return FadeThroughTransition(
+                  animation: primaryAnimation,
+                  secondaryAnimation: secondaryAnimation,
+                  child: child,
+                );
+              },
+              child: IndexedStack(
+                index: _currentIndex,
+                children: [
+                  const HomeScreen(),
+                  const CalendarScreen(),
+                  const ClassroomsScreen(),
+                  ProfileScreen(initialIsSignUp: widget.isSignUp),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: SalomonBottomBar(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
