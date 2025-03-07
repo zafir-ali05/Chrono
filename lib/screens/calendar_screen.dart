@@ -245,121 +245,201 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final textColor = Theme.of(context).colorScheme.onSurface;
     final primaryColor = Theme.of(context).colorScheme.primary;
     
-    return TableCalendar(
-      firstDay: DateTime(2021, 1, 1),
-      lastDay: DateTime(2030, 12, 31),
-      focusedDay: _focusedDay,
-      calendarFormat: _calendarFormat,
-      startingDayOfWeek: StartingDayOfWeek.sunday,
-      headerVisible: false, // Using custom header
-      daysOfWeekHeight: 32,
-      rowHeight: 42,
-      
-      // Clean selection style
-      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-      
-      // Simplified event loading
-      eventLoader: (day) {
-        final normalizedDay = DateTime(day.year, day.month, day.day);
-        return _assignments[normalizedDay] ?? [];
-      },
-      
-      // Standard callbacks
-      onDaySelected: (selectedDay, focusedDay) {
-        setState(() {
-          _selectedDay = selectedDay;
-          _focusedDay = focusedDay;
-        });
-      },
-      
-      // Calendar format cycling with minimalist UI
-      availableCalendarFormats: const {
-        CalendarFormat.month: 'Month',
-        CalendarFormat.week: 'Week',
-      },
-      onFormatChanged: (format) => setState(() => _calendarFormat = format),
-      onPageChanged: (focusedDay) => setState(() => _focusedDay = focusedDay),
-      
-      // Clean styling for calendar
-      calendarStyle: CalendarStyle(
-        // Today styling - subtle highlight
-        todayDecoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: primaryColor, width: 1),
-          color: Colors.transparent,
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surface.withOpacity(0.95),
+          ],
         ),
-        todayTextStyle: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-        
-        // Selected day - stronger highlight
-        selectedDecoration: BoxDecoration(
-          color: primaryColor,
-          shape: BoxShape.circle,
-        ),
-        
-        // Clean marker style - fixed color
-        markerDecoration: BoxDecoration(
-          color: primaryColor.withOpacity(0.8),
-          shape: BoxShape.circle,
-        ),
-        markersMaxCount: 1,
-        markerSize: 6,
-        markerMargin: const EdgeInsets.only(top: 6),
-        
-        // Weekend styling - subtle difference
-        weekendTextStyle: TextStyle(color: Colors.red[300]),
-        defaultTextStyle: TextStyle(color: textColor),
-        
-        // Outside days visibility
-        outsideDaysVisible: false,
-        
-        // Cell margins for cleaner look
-        cellMargin: const EdgeInsets.all(4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      
-      // Days of week style - clean and subtle
-      daysOfWeekStyle: DaysOfWeekStyle(
-        weekdayStyle: TextStyle(
-          color: textColor.withOpacity(0.7),
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
+      child: TableCalendar(
+        firstDay: DateTime(2021, 1, 1),
+        lastDay: DateTime(2030, 12, 31),
+        focusedDay: _focusedDay,
+        calendarFormat: _calendarFormat,
+        startingDayOfWeek: StartingDayOfWeek.sunday,
+        headerVisible: false, // Using custom header
+        daysOfWeekHeight: 32,
+        rowHeight: 42,
+        
+        // Clean selection style
+        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+        
+        // Simplified event loading
+        eventLoader: (day) {
+          final normalizedDay = DateTime(day.year, day.month, day.day);
+          return _assignments[normalizedDay] ?? [];
+        },
+        
+        // Standard callbacks
+        onDaySelected: (selectedDay, focusedDay) {
+          setState(() {
+            _selectedDay = selectedDay;
+            _focusedDay = focusedDay;
+          });
+        },
+        
+        // Calendar format cycling with minimalist UI
+        availableCalendarFormats: const {
+          CalendarFormat.month: 'Month',
+          CalendarFormat.week: 'Week',
+        },
+        onFormatChanged: (format) => setState(() => _calendarFormat = format),
+        onPageChanged: (focusedDay) => setState(() => _focusedDay = focusedDay),
+        
+        // Clean styling for calendar
+        calendarStyle: CalendarStyle(
+          // Today styling - subtle highlight with gradient
+          todayDecoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                primaryColor.withOpacity(0.15),
+                primaryColor.withOpacity(0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+          ),
+          todayTextStyle: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.bold,
+          ),
+          
+          // Selected day - stronger highlight with gradient
+          selectedDecoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [primaryColor, primaryColor.withOpacity(0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          selectedTextStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+          
+          // Marker style - clean and modern
+          markerDecoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.8),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          markersMaxCount: 1,
+          markerSize: 6,
+          markerMargin: const EdgeInsets.only(top: 7),
+          
+          // Cell styling
+          cellMargin: const EdgeInsets.all(6),
+          cellPadding: EdgeInsets.zero,
+          
+          // Text styling
+          defaultTextStyle: TextStyle(
+            color: textColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+          weekendTextStyle: TextStyle(
+            color: Colors.red.shade300,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+          outsideTextStyle: TextStyle(
+            color: textColor.withOpacity(0.4),
+            fontSize: 14,
+          ),
         ),
-        weekendStyle: TextStyle(
-          color: Colors.red[300]!.withOpacity(0.7),
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor.withOpacity(0.3),
-              width: 1,
+        
+        // Weekday header styling
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+            color: textColor.withOpacity(0.7),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+          weekendStyle: TextStyle(
+            color: Colors.red.shade300.withOpacity(0.7),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor.withOpacity(0.2),
+                width: 1,
+              ),
             ),
           ),
         ),
-      ),
-      
-      // Add this to handle overdue markers
-      calendarBuilders: CalendarBuilders(
-        markerBuilder: (context, date, events) {
-          if (events.isEmpty) return null;
-          
-          // Don't show dot marker if this day is currently selected or is today
-          if (isSameDay(date, _selectedDay) || isSameDay(date, DateTime.now())) return null;
-          
-          return Positioned(
-            bottom: 1,
-            child: Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _isOverdue(date) 
-                    ? Colors.red.withOpacity(0.8)
-                    : primaryColor.withOpacity(0.8),
+        
+        // Calendar builders
+        calendarBuilders: CalendarBuilders(
+          markerBuilder: (context, date, events) {
+            if (events.isEmpty) return null;
+            
+            final isSelected = isSameDay(date, _selectedDay);
+            final isToday = isSameDay(date, DateTime.now());
+            
+            // Don't show marker if day is selected or today
+            if (isSelected || isToday) return null;
+            
+            return Positioned(
+              bottom: 2,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: _isOverdue(date)
+                        ? [Colors.red.shade300, Colors.red.shade400]
+                        : [primaryColor.withOpacity(0.7), primaryColor],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _isOverdue(date)
+                          ? Colors.red.withOpacity(0.3)
+                          : primaryColor.withOpacity(0.3),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

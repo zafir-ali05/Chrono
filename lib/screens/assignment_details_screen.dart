@@ -78,7 +78,7 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
     final now = DateTime.now();
     final isOverdue = widget.assignment.dueDate.isBefore(now);
     final daysUntilDue = widget.assignment.dueDate.difference(now).inDays;
-    
+
     final Color statusColor;
     final IconData statusIcon;
     
@@ -87,191 +87,295 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
       statusIcon = Icons.warning_rounded;
     } else if (daysUntilDue <= 3) {
       statusColor = Colors.red;
-      statusIcon = Icons.hourglass_bottom;
+      statusIcon = Icons.hourglass_bottom_rounded;
     } else if (daysUntilDue <= 7) {
       statusColor = Colors.orange;
-      statusIcon = Icons.hourglass_top;
+      statusIcon = Icons.hourglass_top_rounded;
     } else {
       statusColor = Colors.grey;
-      statusIcon = Icons.event;
+      statusIcon = Icons.event_rounded;
     }
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.assignment.name),
-        // Removed the actions array containing the edit button
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
-      body: Column(
-        children: [
-          // Assignment Details Card
-          Card(
-            margin: const EdgeInsets.all(16),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: Theme.of(context).dividerColor.withOpacity(0.3),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.surface.withOpacity(0.95),
+            ],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Assignment Details Card with enhanced styling
+            Card(
+              margin: const EdgeInsets.all(16),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: statusColor.withOpacity(0.3)),
-                        ),
-                        child: Icon(
-                          statusIcon,
-                          size: 24,
-                          color: statusColor,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.assignment.className,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Due ${widget.assignment.dueDate.toString().split(' ')[0]}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: statusColor,
-                                fontWeight: isOverdue ? FontWeight.w500 : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).colorScheme.surface.withOpacity(0.95),
                     ],
                   ),
-                ],
-              ),
-            ),
-          ),
-
-          // Tasks Section Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-            child: Row(
-              children: [
-                const Icon(Icons.checklist, size: 16),
-                const SizedBox(width: 8),
-                const Text(
-                  'Tasks',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.25,
-                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.add, size: 20),
-                  onPressed: _showAddTaskDialog,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
-          ),
-
-          // Tasks List
-          Expanded(
-            child: StreamBuilder<List<Task>>(
-              stream: _taskService.getTasksForAssignment(
-                widget.assignment.id,
-                userId,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final tasks = snapshot.data!;
-                final pendingTasks = tasks.where((t) => !t.isCompleted).toList();
-                final completedTasks = tasks.where((t) => t.isCompleted).toList();
-
-                if (tasks.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        Icon(
-                          Icons.checklist,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No tasks yet',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                statusColor.withOpacity(0.8),
+                                statusColor,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: statusColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            statusIcon,
+                            size: 24,
+                            color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: _showAddTaskDialog,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add Task'),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.assignment.className,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      statusColor.withOpacity(0.8),
+                                      statusColor,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Due ${widget.assignment.dueDate.toString().split(' ')[0]}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                    fontWeight: isOverdue ? FontWeight.w500 : null,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  );
-                }
-
-                return ListView(
-                  children: [
-                    if (pendingTasks.isNotEmpty) ...[
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
-                        child: Text(
-                          'Pending',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      ...pendingTasks.map((task) => _buildTaskTile(task)),
-                    ],
-                    if (completedTasks.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-                        child: Text(
-                          'Completed',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.5,
-                            color: Theme.of(context).colorScheme.secondary,
-                          ),
-                        ),
-                      ),
-                      ...completedTasks.map((task) => _buildTaskTile(task)),
-                    ],
                   ],
-                );
-              },
+                ),
+              ),
+            ),
+
+            // Tasks Section Header with enhanced styling
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.checklist_rounded,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Tasks',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.25,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      onPressed: _showAddTaskDialog,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Tasks List with enhanced styling
+            Expanded(
+              child: StreamBuilder<List<Task>>(
+                stream: _taskService.getTasksForAssignment(
+                  widget.assignment.id,
+                  userId,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final tasks = snapshot.data!;
+                  final pendingTasks = tasks.where((t) => !t.isCompleted).toList();
+                  final completedTasks = tasks.where((t) => t.isCompleted).toList();
+
+                  if (tasks.isEmpty) {
+                    return _buildEmptyTasksState();
+                  }
+
+                  return ListView(
+                    children: [
+                      if (pendingTasks.isNotEmpty) ...[
+                        _buildTasksSection('Pending', pendingTasks),
+                      ],
+                      if (completedTasks.isNotEmpty) ...[
+                        _buildTasksSection('Completed', completedTasks),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyTasksState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.checklist_rounded,
+              size: 40,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'No tasks yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _showAddTaskDialog,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Add Task'),
+                ),
+              ],
             ),
           ),
         ],
@@ -279,18 +383,56 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
     );
   }
 
-  Widget _buildTaskTile(Task task) {
+  Widget _buildTasksSection(String title, List<Task> tasks) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.5,
+              color: title == 'Pending' 
+                  ? Colors.yellow.shade800
+                  : Colors.green.shade600,
+            ),
+          ),
+        ),
+        ...tasks.map((task) => _buildEnhancedTaskTile(task)),
+      ],
+    );
+  }
+
+  Widget _buildEnhancedTaskTile(Task task) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Card(
-        elevation: 0,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: ListTile(
-          leading: Checkbox(
-            value: task.isCompleted,
-            onChanged: (value) => _taskService.toggleTaskCompletion(task),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          leading: Transform.scale(
+            scale: 0.9,
+            child: Checkbox(
+              value: task.isCompleted,
+              onChanged: (value) => _taskService.toggleTaskCompletion(task),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
           title: Text(
@@ -303,8 +445,9 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> {
             ),
           ),
           trailing: IconButton(
-            icon: const Icon(Icons.delete_outline),
+            icon: const Icon(Icons.delete_outline_rounded),
             onPressed: () => _taskService.deleteTask(task.id),
+            visualDensity: VisualDensity.compact,
           ),
         ),
       ),

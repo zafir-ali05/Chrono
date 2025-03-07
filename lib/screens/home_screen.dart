@@ -25,6 +25,14 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchTerm = '';
   bool _isSearching = false;
 
+  // Modified method to dismiss keyboard only when it's actually showing
+  void _dismissKeyboard() {
+    final FocusScopeNode currentFocus = FocusScope.of(context);
+    if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
+      currentFocus.unfocus();
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -51,143 +59,163 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return Container(
-      // Add subtle gradient background to entire screen
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Theme.of(context).colorScheme.surface,
-            Theme.of(context).colorScheme.surface.withOpacity(0.95),
+    return GestureDetector(
+      // Dismiss keyboard when tapping outside of search field
+      onTap: _dismissKeyboard,
+      behavior: HitTestBehavior.translucent, // Allow taps to pass through to children
+      child: Container(
+        // Add subtle gradient background to entire screen
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.surface.withOpacity(0.95),
+            ],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Enhanced search bar with more rounded corners and subtle shadow
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    // Only setState if the value actually changed to avoid unnecessary rebuilds
+                    if (_searchTerm != value) {
+                      setState(() => _searchTerm = value);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Search assignments or classes',
+                    hintStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                      height: 1.0, // Adjust hint text alignment
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded, // Using rounded version
+                      size: 22,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                    suffixIcon: _searchTerm.isNotEmpty
+                        ? Container(
+                            margin: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.8),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 16), // Using rounded version
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchTerm = '');
+                              },
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                            ),
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    // Adjust padding to vertically center the text better
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  ),
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    height: 1.0, // Add this to ensure proper vertical alignment
+                  ),
+                  textAlignVertical: TextAlignVertical.center, // Add this to center text vertically
+                  cursorColor: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            
+            // Stream of assignments - wrap in RepaintBoundary to optimize rebuilds
+            Expanded(
+              child: RepaintBoundary(
+                child: StreamBuilder<List<Assignment>>(
+                  stream: _assignmentService.getAllUserAssignments(user.uid),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(
+                        child: CircularProgressIndicator(
+                          // Customized progress indicator
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return _buildErrorWidget(snapshot.error);
+                    }
+
+                    final assignments = snapshot.data ?? [];
+                    final filteredAssignments = _filterAssignments(assignments, _searchTerm);
+                    
+                    if (assignments.isEmpty) {
+                      return _buildEmptyState(context);
+                    }
+                    
+                    if (filteredAssignments.isEmpty) {
+                      return _buildNoSearchResultsState(context);
+                    }
+
+                    // Group assignments by timeframe
+                    final overdue = <Assignment>[];
+                    final dueSoon = <Assignment>[];
+                    final upcoming = <Assignment>[];
+                    final later = <Assignment>[];
+
+                    final now = DateTime.now();
+                    for (final assignment in filteredAssignments) {
+                      if (assignment.dueDate.isBefore(now)) {
+                        overdue.add(assignment);
+                      } else if (assignment.dueDate.difference(now).inDays <= 3) {
+                        dueSoon.add(assignment);
+                      } else if (assignment.dueDate.difference(now).inDays <= 7) {
+                        upcoming.add(assignment);
+                      } else {
+                        later.add(assignment);
+                      }
+                    }
+
+                    return _buildAssignmentsListView(
+                      context,
+                      overdue: overdue,
+                      dueSoon: dueSoon,
+                      upcoming: upcoming,
+                      later: later,
+                    );
+                  },
+                ),
+              ),
+            ),
           ],
         ),
-      ),
-      child: Column(
-        children: [
-          // Enhanced search bar with more rounded corners and subtle shadow
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) => setState(() => _searchTerm = value),
-                decoration: InputDecoration(
-                  hintText: 'Search assignments or classes',
-                  hintStyle: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded, // Using rounded version
-                    size: 22,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
-                  ),
-                  suffixIcon: _searchTerm.isNotEmpty
-                      ? Container(
-                          margin: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.8),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.clear_rounded, size: 16), // Using rounded version
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchTerm = '');
-                            },
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints.tightFor(width: 24, height: 24),
-                          ),
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                ),
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-                cursorColor: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-          
-          // Stream of assignments
-          Expanded(
-            child: StreamBuilder<List<Assignment>>(
-              stream: _assignmentService.getAllUserAssignments(user.uid),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                      // Customized progress indicator
-                      strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return _buildErrorWidget(snapshot.error);
-                }
-
-                final assignments = snapshot.data ?? [];
-                final filteredAssignments = _filterAssignments(assignments, _searchTerm);
-                
-                if (assignments.isEmpty) {
-                  return _buildEmptyState(context);
-                }
-                
-                if (filteredAssignments.isEmpty) {
-                  return _buildNoSearchResultsState(context);
-                }
-
-                // Group assignments by timeframe
-                final overdue = <Assignment>[];
-                final dueSoon = <Assignment>[];
-                final upcoming = <Assignment>[];
-                final later = <Assignment>[];
-
-                final now = DateTime.now();
-                for (final assignment in filteredAssignments) {
-                  if (assignment.dueDate.isBefore(now)) {
-                    overdue.add(assignment);
-                  } else if (assignment.dueDate.difference(now).inDays <= 3) {
-                    dueSoon.add(assignment);
-                  } else if (assignment.dueDate.difference(now).inDays <= 7) {
-                    upcoming.add(assignment);
-                  } else {
-                    later.add(assignment);
-                  }
-                }
-
-                return _buildAssignmentsListView(
-                  context,
-                  overdue: overdue,
-                  dueSoon: dueSoon,
-                  upcoming: upcoming,
-                  later: later,
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }
