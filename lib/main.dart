@@ -11,12 +11,18 @@ import 'screens/profile_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/notification_service.dart';
+import 'services/task_service.dart';
+import 'package:get/get.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Create and register the task service singleton
+  final taskService = TaskService();
+  Get.put(taskService, permanent: true);
 
   // Initialize notifications
   final notificationService = NotificationService();

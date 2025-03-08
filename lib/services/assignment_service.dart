@@ -4,11 +4,18 @@ import '../services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:rxdart/rxdart.dart';
+import 'dart:async';
 
 class AssignmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   // Add cache for assignments
   final Map<String, List<Assignment>> _assignmentsCache = {};
+  
+  // Add a subject to broadcast assignment status changes
+  final _assignmentStatusController = StreamController<void>.broadcast();
+  
+  // Expose the stream as a public property
+  Stream<void> get onAssignmentStatusChanged => _assignmentStatusController.stream;
 
   Stream<List<Assignment>> getGroupAssignments(String groupId) {
     // First emit cached data if available
@@ -170,12 +177,53 @@ class AssignmentService {
     required String groupId,
     required String assignmentId,
   }) async {
-    await _firestore
+    // Create a batch to perform multiple operations atomically
+    final batch = _firestore.batch();
+    
+    // Reference to the assignment document
+    final assignmentRef = _firestore
         .collection('groups')
         .doc(groupId)
         .collection('assignments')
-        .doc(assignmentId)
-        .delete();
+        .doc(assignmentId);
+    
+    // Add assignment deletion to batch
+    batch.delete(assignmentRef);
+    
+    // Get all tasks for this assignment
+    final taskSnapshot = await _firestore
+        .collection('tasks')
+        .where('assignmentId', isEqualTo: assignmentId)
+        .get();
+    
+    // Add each task deletion to the batch
+    for (var doc in taskSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    
+    // Delete completion status documents
+    final completionSnapshot = await _firestore
+        .collection('completedAssignments')
+        .where('assignmentId', isEqualTo: assignmentId)
+        .get();
+    
+    // Add each completion document deletion to the batch
+    for (var doc in completionSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    
+    // Commit the batch operation
+    await batch.commit();
+    
+    // Also update the cache
+    if (_assignmentsCache.containsKey(groupId)) {
+      _assignmentsCache[groupId] = _assignmentsCache[groupId]!
+          .where((a) => a.id != assignmentId)
+          .toList();
+    }
+    
+    // Log the deletion for debugging
+    print('Assignment $assignmentId deleted with all ${taskSnapshot.docs.length} associated tasks');
   }
 
   Stream<List<Assignment>> getAllUserAssignments(String userId) {
@@ -269,6 +317,12 @@ class AssignmentService {
       final documentId = '${assignmentId}_$userId';
       final docRef = _firestore.collection('completedAssignments').doc(documentId);
       
+      // Create a local stream controller to emit optimistic updates
+      final controller = StreamController<bool>();
+      
+      // Emit the expected state immediately
+      controller.add(complete);
+      
       if (complete) {
         // Mark as complete
         await docRef.set({
@@ -276,16 +330,16 @@ class AssignmentService {
           'userId': userId,
           'completedAt': FieldValue.serverTimestamp(),
         });
-        
-        // Add debug print
-        print('Assignment marked complete: $documentId');
       } else {
         // Mark as incomplete by deleting the document
         await docRef.delete();
-        
-        // Add debug print
-        print('Assignment marked incomplete: $documentId');
       }
+      
+      // Notify listeners about the status change
+      _assignmentStatusController.add(null);
+      
+      // Close the controller
+      controller.close();
     } catch (e) {
       print('Error marking assignment ${complete ? "complete" : "incomplete"}: $e');
       throw e;
@@ -309,5 +363,10 @@ class AssignmentService {
           print('Checking completion status for $documentId: $exists');
           return exists;
         });
+  }
+  
+  // Add this method to your dispose method or app cleanup
+  void dispose() {
+    _assignmentStatusController.close();
   }
 }

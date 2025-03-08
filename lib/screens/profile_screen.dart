@@ -472,7 +472,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Column(
               children: [
                 Text(
-                  'Chronos',
+                  'Chrono',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,

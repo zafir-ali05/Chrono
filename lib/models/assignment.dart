@@ -11,6 +11,7 @@ class Assignment {
   final String creatorId;
   final DateTime createdAt;
   final bool notifiedOverdue;
+  bool isCompleted = false;
 
   Assignment({
     required this.id,

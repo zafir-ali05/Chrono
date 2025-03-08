@@ -146,7 +146,7 @@ class SettingsScreen extends StatelessWidget {
                         Icons.feedback_outlined,
                         color: Theme.of(context).colorScheme.primary,
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      //trailing: const Icon(Icons.chevron_right),
                       onTap: () => _showFeedbackDialog(context),
                     ),
                   ],

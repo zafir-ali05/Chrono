@@ -87,8 +87,11 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
   
   void _initAnimationControllers() {
     // Initialize controllers with default values
-    for (final section in ['Overdue', 'Due Soon', 'Upcoming']) {
-      final isExpanded = _expandedSections[section] ?? true;
+    for (final section in ['Overdue', 'Due Soon', 'Upcoming', 'Completed']) {
+      final isExpanded = section == 'Completed' 
+          ? _expandedSections[section] ?? false  // Default Completed to collapsed
+          : _expandedSections[section] ?? true;  // Others expanded by default
+          
       _animationControllers[section] = AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 250),
@@ -180,7 +183,19 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
   
   Widget _buildMainContent() {
     return StreamBuilder<List<Assignment>>(
-      stream: _assignmentService.getGroupAssignments(widget.group.id),
+      stream: _assignmentService.getGroupAssignments(widget.group.id).map((assignments) {
+        // Deduplicate assignments by ID before displaying
+        final uniqueAssignments = <String, Assignment>{};
+        for (final assignment in assignments) {
+          uniqueAssignments[assignment.id] = assignment;
+        }
+        
+        // Sort by due date (earliest first) after deduplication
+        final result = uniqueAssignments.values.toList()
+          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+        
+        return result;
+      }),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -191,9 +206,6 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
         }
 
         final assignments = snapshot.data ?? [];
-        
-        // Sort assignments by due date (earliest first)
-        assignments.sort((a, b) => a.dueDate.compareTo(b.dueDate));
         
         if (assignments.isEmpty) {
           return _buildEmptyAssignmentsState();
@@ -291,269 +303,374 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
     final overdue = <Assignment>[];
     final dueSoon = <Assignment>[];
     final upcoming = <Assignment>[];
+    final completed = <Assignment>[];  // New completed category
     
+    final userId = _authService.currentUser?.uid ?? '';
     final now = DateTime.now();
-    for (final assignment in assignments) {
-      if (assignment.dueDate.isBefore(now)) {
-        overdue.add(assignment);
-      } else if (assignment.dueDate.difference(now).inDays <= 3) {
-        dueSoon.add(assignment);
-      } else {
-        upcoming.add(assignment);
-      }
-    }
     
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 100), // Make room for FABs
-      children: [
-        if (overdue.isNotEmpty) ...[
-          RepaintBoundary(
-            child: _GroupSectionWrapper(
-              title: 'Overdue',
-              assignments: overdue,
-              initiallyExpanded: _expandedSections['Overdue'] ?? true,
-              controller: _animationControllers['Overdue']!,
-              icon: Icons.warning_rounded,
-              color: Colors.red,
-              // Now this matches the expected function signature
-              assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
-            ),
-          ),
-        ],
-        if (dueSoon.isNotEmpty) ...[
-          RepaintBoundary(
-            child: _GroupSectionWrapper(
-              title: 'Due Soon',
-              assignments: dueSoon,
-              initiallyExpanded: _expandedSections['Due Soon'] ?? true,
-              controller: _animationControllers['Due Soon']!,
-              icon: Icons.hourglass_bottom_rounded,
-              color: Colors.orange,
-              assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
-            ),
-          ),
-        ],
-        if (upcoming.isNotEmpty) ...[
-          RepaintBoundary(
-            child: _GroupSectionWrapper(
-              title: 'Upcoming',
-              assignments: upcoming,
-              initiallyExpanded: _expandedSections['Upcoming'] ?? true,
-              controller: _animationControllers['Upcoming']!,
-              icon: Icons.event_rounded,
-              color: Theme.of(context).colorScheme.primary,
-              assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
-            ),
-          ),
-        ],
-      ],
+    // Use FutureBuilder to batch check completion status first
+    return FutureBuilder<List<Assignment>>(
+      future: _checkCompletionForAssignments(assignments, userId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        // Now assignments have proper isCompleted flags
+        final assignmentsWithStatus = snapshot.data!;
+        
+        // Categorize assignments
+        for (final assignment in assignmentsWithStatus) {
+          if (assignment.isCompleted) {
+            completed.add(assignment);
+          } else if (assignment.dueDate.isBefore(now)) {
+            overdue.add(assignment);
+          } else if (assignment.dueDate.difference(now).inDays <= 3) {
+            dueSoon.add(assignment);
+          } else {
+            upcoming.add(assignment);
+          }
+        }
+        
+        // Initialize controller for Completed section if needed
+        if (!_animationControllers.containsKey('Completed')) {
+          _animationControllers['Completed'] = AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 250),
+            value: (_expandedSections['Completed'] ?? false) ? 1.0 : 0.0,
+          );
+          _expandedSections['Completed'] = _expandedSections['Completed'] ?? false;
+        }
+        
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 100), // Make room for FABs
+          children: [
+            if (overdue.isNotEmpty) ...[
+              RepaintBoundary(
+                child: _GroupSectionWrapper(
+                  title: 'Overdue',
+                  assignments: overdue,
+                  initiallyExpanded: _expandedSections['Overdue'] ?? true,
+                  controller: _animationControllers['Overdue']!,
+                  icon: Icons.warning_rounded,
+                  color: Colors.red,
+                  assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
+                ),
+              ),
+            ],
+            if (dueSoon.isNotEmpty) ...[
+              RepaintBoundary(
+                child: _GroupSectionWrapper(
+                  title: 'Due Soon',
+                  assignments: dueSoon,
+                  initiallyExpanded: _expandedSections['Due Soon'] ?? true,
+                  controller: _animationControllers['Due Soon']!,
+                  icon: Icons.hourglass_bottom_rounded,
+                  color: Colors.orange,
+                  assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
+                ),
+              ),
+            ],
+            if (upcoming.isNotEmpty) ...[
+              RepaintBoundary(
+                child: _GroupSectionWrapper(
+                  title: 'Upcoming',
+                  assignments: upcoming,
+                  initiallyExpanded: _expandedSections['Upcoming'] ?? true,
+                  controller: _animationControllers['Upcoming']!,
+                  icon: Icons.event_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                  assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
+                ),
+              ),
+            ],
+            // Add the completed section
+            if (completed.isNotEmpty) ...[
+              RepaintBoundary(
+                child: _GroupSectionWrapper(
+                  title: 'Completed',
+                  assignments: completed,
+                  initiallyExpanded: _expandedSections['Completed'] ?? false, // Default to collapsed
+                  controller: _animationControllers['Completed']!,
+                  icon: Icons.check_circle_rounded,
+                  color: Colors.green,
+                  assignmentTileBuilder: (context, assignment) => _buildEnhancedAssignmentTile(context, assignment),
+                ),
+              ),
+            ],
+          ],
+        );
+      }
     );
   }
   
-  // Update the _buildEnhancedAssignmentTile method signature to accept context
+  // Update the _buildEnhancedAssignmentTile method to include animations
   Widget _buildEnhancedAssignmentTile(BuildContext context, Assignment assignment) {
     final bool isOverdue = assignment.dueDate.isBefore(DateTime.now());
     final int daysUntilDue = assignment.dueDate.difference(DateTime.now()).inDays;
+    final userId = _authService.currentUser?.uid ?? '';
     
-    // Enhanced status indicators with gradients
-    final Color statusColor;
-    final IconData statusIcon;
-    final LinearGradient statusGradient;
-    
-    if (isOverdue) {
-      statusColor = Colors.red;
-      statusIcon = Icons.warning_rounded;
-      statusGradient = LinearGradient(
-        colors: [Colors.red.shade300, Colors.red.shade600],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    } else if (daysUntilDue <= 3) {
-      statusColor = Colors.orange;
-      statusIcon = Icons.hourglass_bottom_rounded;
-      statusGradient = LinearGradient(
-        colors: [Colors.orange.shade300, Colors.orange.shade500],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    } else if (daysUntilDue <= 7) {
-      statusColor = Colors.teal;
-      statusIcon = Icons.hourglass_top_rounded;
-      statusGradient = LinearGradient(
-        colors: [Colors.teal.shade300, Colors.teal.shade500],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    } else {
-      statusColor = Colors.grey;
-      statusIcon = Icons.hourglass_empty_rounded;
-      statusGradient = LinearGradient(
-        colors: [Colors.grey.shade400, Colors.grey.shade600],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    }
-    
-    // Create the due date indicator widget
-    Widget dueDateIndicator = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        gradient: statusGradient,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            statusIcon,
-            size: 14,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            getDueInDays(assignment.dueDate),
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.white,
-              fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
+    // Create animation controller for this item
+    final AnimationController animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
     );
     
-    // Check if we're in dark mode
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    // Add StreamBuilder to track completion status for this specific assignment
+    return StreamBuilder<bool>(
+      stream: _assignmentService.isAssignmentCompleted(assignment.id, userId),
+      builder: (context, snapshot) {
+        final isCompleted = snapshot.data ?? false;
+        final wasCompleted = assignment.isCompleted;
+        
+        // Play animation when completion status changes
+        if (wasCompleted != isCompleted) {
+          animationController.reset();
+          animationController.forward();
+          
+          // Also play haptic feedback
+          if (isCompleted) {
+            HapticFeedback.mediumImpact();
+          }
+        }
+        
+        // Set completion status in the Assignment object for consistency
+        assignment.isCompleted = isCompleted;
     
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          // Adjust background color based on theme brightness
-          color: isDarkMode 
-              ? Theme.of(context).colorScheme.surface.withOpacity(1.0)  // Full opacity in dark mode
-              : Theme.of(context).colorScheme.surface,
-          // Enhance shadow for dark mode
-          boxShadow: [
-            BoxShadow(
-              color: isDarkMode
-                  ? Colors.black.withOpacity(0.3)   // Darker shadow for dark mode
-                  : Colors.black.withOpacity(0.05), 
-              blurRadius: isDarkMode ? 12 : 10,
-              offset: const Offset(0, 2),
-              spreadRadius: isDarkMode ? 1 : 0,     // Add spread in dark mode
-            ),
-            // Add a subtle glow effect in dark mode for better visibility
-            if (isDarkMode) BoxShadow(
-              color: statusColor.withOpacity(0.15),  // Colored glow based on status
-              blurRadius: 8,
-              offset: const Offset(0, 0),
-              spreadRadius: 0,
-            ),
-          ],
-          // Add subtle border for dark mode
-          border: isDarkMode
-              ? Border.all(
-                  color: Colors.grey.withOpacity(0.2),
-                  width: 0.5,
-                )
-              : null,
-        ),
-        margin: const EdgeInsets.only(bottom: 4),
-        clipBehavior: Clip.hardEdge,
-        child: Column(
-          children: [
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AssignmentDetailsScreen(assignment: assignment),
-                  ),
-                );
-              },
+        // Enhanced status indicators with gradients
+        final Color statusColor;
+        final IconData statusIcon;
+        final LinearGradient statusGradient;
+        
+        if (isCompleted) {
+          statusColor = Colors.green;
+          statusIcon = Icons.check_circle_rounded;
+          statusGradient = LinearGradient(
+            colors: [Colors.green.shade300, Colors.green.shade600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+        } else if (isOverdue) {
+          statusColor = Colors.red;
+          statusIcon = Icons.warning_rounded;
+          statusGradient = LinearGradient(
+            colors: [Colors.red.shade300, Colors.red.shade600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+        } else if (daysUntilDue <= 3) {
+          statusColor = Colors.orange;
+          statusIcon = Icons.hourglass_bottom_rounded;
+          statusGradient = LinearGradient(
+            colors: [Colors.orange.shade300, Colors.orange.shade500],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+        } else if (daysUntilDue <= 7) {
+          statusColor = Colors.teal;
+          statusIcon = Icons.hourglass_top_rounded;
+          statusGradient = LinearGradient(
+            colors: [Colors.teal.shade300, Colors.teal.shade500],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+        } else {
+          statusColor = Colors.grey;
+          statusIcon = Icons.hourglass_empty_rounded;
+          statusGradient = LinearGradient(
+            colors: [Colors.grey.shade400, Colors.grey.shade600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+        }
+        
+        // Create the due date indicator widget
+        Widget dueDateIndicator = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            gradient: statusGradient,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                statusIcon,
+                size: 14,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isCompleted ? 'Completed' : getDueInDays(assignment.dueDate),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        );
+        
+        // Check if we're in dark mode
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        
+        // Create animation for completed items
+        final Animation<double> scaleAnimation = TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.08), weight: 1),
+          TweenSequenceItem(tween: Tween(begin: 1.08, end: 1.0), weight: 1),
+        ]).animate(CurvedAnimation(
+          parent: animationController,
+          curve: Curves.easeInOut,
+        ));
+        
+        return AnimatedBuilder(
+          animation: scaleAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: isCompleted && animationController.isAnimating ? scaleAnimation.value : 1.0,
               child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  title: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start, // Align to top
-                    children: [
-                      // Assignment name on the left
-                      Expanded(
-                        child: Text(
-                          assignment.name,
-                          style: TextStyle(
-                            fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
-                            fontSize: 15,
-                          ),
-                        ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    // Adjust background color based on theme brightness
+                    color: isDarkMode 
+                        ? Theme.of(context).colorScheme.surface.withOpacity(1.0)  // Full opacity in dark mode
+                        : Theme.of(context).colorScheme.surface,
+                    // Enhance shadow for dark mode
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDarkMode
+                            ? Colors.black.withOpacity(0.3)   // Darker shadow for dark mode
+                            : Colors.black.withOpacity(0.05), 
+                        blurRadius: isDarkMode ? 12 : 10,
+                        offset: const Offset(0, 2),
+                        spreadRadius: isDarkMode ? 1 : 0,     // Add spread in dark mode
                       ),
-                      // Due date indicator on the right with some top padding
-                      const SizedBox(width: 8),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2), // Add 2px of top padding
-                        child: dueDateIndicator,
+                      // Add a subtle glow effect in dark mode for better visibility
+                      if (isDarkMode) BoxShadow(
+                        color: statusColor.withOpacity(0.15),  // Colored glow based on status
+                        blurRadius: 8,
+                        offset: const Offset(0, 0),
+                        spreadRadius: 0,
                       ),
                     ],
+                    // Add subtle border for dark mode
+                    border: isDarkMode
+                        ? Border.all(
+                            color: Colors.grey.withOpacity(0.2),
+                            width: 0.5,
+                          )
+                        : null,
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 2), // Reduced top padding from 4 to 2
-                    child: Text(
-                      assignment.className,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                  margin: const EdgeInsets.only(bottom: 4),
+                  clipBehavior: Clip.hardEdge,
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AssignmentDetailsScreen(assignment: assignment),
                     ),
-                  ),
-                  leading: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      gradient: statusGradient,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: statusColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    title: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start, // Align to top
+                      children: [
+                        // Assignment name on the left
+                        Expanded(
+                          child: Text(
+                            assignment.name,
+                            style: TextStyle(
+                              fontWeight: isOverdue || daysUntilDue <= 3 ? FontWeight.w500 : FontWeight.normal,
+                              fontSize: 15,
+                              decoration: isCompleted ? TextDecoration.lineThrough : null,
+                              decorationColor: Colors.black54,
+                              color: isCompleted 
+                                  ? Theme.of(context).colorScheme.onSurface.withOpacity(0.6) 
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        // Due date indicator on the right with some top padding
+                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2), // Add 2px of top padding
+                          child: dueDateIndicator,
                         ),
                       ],
                     ),
-                    child: Icon(
-                      statusIcon,
-                      size: 20,
-                      color: Colors.white,
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2), // Reduced top padding from 4 to 2
+                      child: Text(
+                        assignment.className,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isCompleted
+                              ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7)
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
-                  ),
-                  trailing: Padding(
-                    padding: const EdgeInsets.only(top: 0), // Add same top padding as due date indicator
-                    child: IconButton(
-                      icon: const Icon(Icons.edit_rounded, size: 20),
-                      onPressed: () => _showEditAssignmentDialog(assignment),
-                      splashRadius: 24,
-                      padding: EdgeInsets.zero, // Remove default padding
-                      constraints: const BoxConstraints(), // Remove default constraints
-                      visualDensity: VisualDensity.compact, // Make the button more compact
+                    leading: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        gradient: statusGradient,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        statusIcon,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                    trailing: Padding(
+                      padding: const EdgeInsets.only(top: 0), // Add same top padding as due date indicator
+                      child: IconButton(
+                        icon: const Icon(Icons.edit_rounded, size: 20),
+                        onPressed: () => _showEditAssignmentDialog(assignment),
+                        splashRadius: 24,
+                        padding: EdgeInsets.zero, // Remove default padding
+                        constraints: const BoxConstraints(), // Remove default constraints
+                        visualDensity: VisualDensity.compact, // Make the button more compact
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            // Move embedded tasks list higher by reducing padding
-            Padding(
-              padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
-              child: EmbeddedTasksList(
-                assignmentId: assignment.id,
-                userId: _authService.currentUser?.uid ?? '',
-                taskService: _taskService,
+              // Move embedded tasks list higher by reducing padding
+              Padding(
+                padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
+                child: EmbeddedTasksList(
+                  assignmentId: assignment.id,
+                  userId: _authService.currentUser?.uid ?? '',
+                  taskService: _taskService,
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1023,6 +1140,24 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
         ],
       ),
     );
+  }
+
+  // Add this method inside the _GroupDetailsScreenState class
+  Future<List<Assignment>> _checkCompletionForAssignments(List<Assignment> assignments, String userId) async {
+    final result = List<Assignment>.from(assignments);
+    
+    // Use a batch of futures to check completion status concurrently
+    final futures = <Future<void>>[];
+    
+    for (var i = 0; i < result.length; i++) {
+      final assignment = result[i];
+      futures.add(_assignmentService.isAssignmentCompleted(assignment.id, userId).first.then((isCompleted) {
+        assignment.isCompleted = isCompleted;
+      }));
+    }
+    
+    await Future.wait(futures);
+    return result;
   }
 }
 
