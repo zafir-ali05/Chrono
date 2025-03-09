@@ -8,12 +8,15 @@ class EmbeddedTasksList extends StatefulWidget {
   final String assignmentId;
   final String userId;
   final TaskService taskService;
+  // Add this callback parameter
+  final Function(bool)? onTaskCompleted;
 
   const EmbeddedTasksList({
     super.key,
     required this.assignmentId,
     required this.userId,
     required this.taskService,
+    this.onTaskCompleted, // New parameter
   });
 
   @override
@@ -27,9 +30,26 @@ class _EmbeddedTasksListState extends State<EmbeddedTasksList> with TickerProvid
   @override
   void initState() {
     super.initState();
-    // Listen for task status changes to rebuild the widget
+    
+    // Listen to task changes by watching the assignment's task list directly
+    widget.taskService.getTasksForAssignment(widget.assignmentId, widget.userId)
+        .listen((tasks) {
+      if (mounted && widget.onTaskCompleted != null) {
+        // Whenever the tasks list changes, notify the parent of completion status
+        final hasCompletedTask = tasks.any((task) => task.isCompleted);
+        widget.onTaskCompleted!(hasCompletedTask);
+      }
+    });
+    
+    // Also listen to direct completion events
     widget.taskService.onTaskStatusChanged.listen((event) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        // We don't need to check the specific task here since the tasks stream
+        // above will capture all changes and handle the callback properly
+        setState(() {
+          // Just trigger a local rebuild
+        });
+      }
     });
   }
   
@@ -100,6 +120,10 @@ class _EmbeddedTasksListState extends State<EmbeddedTasksList> with TickerProvid
                   // Slight delay before updating the database to allow animation to play
                   Future.delayed(const Duration(milliseconds: 200), () {
                     widget.taskService.toggleTaskCompletion(task);
+                    // Call the callback if provided
+                    if (widget.onTaskCompleted != null) {
+                      widget.onTaskCompleted!(task.isCompleted);
+                    }
                   });
                 },
                 borderRadius: BorderRadius.circular(12),

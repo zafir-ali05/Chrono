@@ -426,7 +426,7 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
     String monthName = _getMonthName(_focusedDay.month);
     
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 8), // Changed padding to match home screen
+      padding: const EdgeInsets.fromLTRB(16, 72, 16, 8), // Changed padding to match home screen
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

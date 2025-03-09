@@ -138,36 +138,99 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent, // Make scaffold transparent to show gradient
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          actions: [
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                shape: BoxShape.circle,
+        // Remove the AppBar completely
+        body: CustomScrollView(
+          // Add top padding of 72 pixels to match other screens
+          slivers: [
+            // Add a SliverAppBar that scrolls with content
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 72, 16, 8),
+                child: SizedBox(
+                  height: 45, // Explicit height to match button height
+                  child: Stack(
+                    clipBehavior: Clip.none, // Prevent clipping of children
+                    children: [
+                      // Centered container for the title
+                      Container(
+                        width: double.infinity,
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Profile',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      
+                      // Absolutely positioned settings button
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SettingsScreen(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 45,
+                            height: 45,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                                  Theme.of(context).colorScheme.primary,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                CupertinoIcons.settings,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: IconButton(
-                icon: const Icon(CupertinoIcons.settings),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SettingsScreen(),
-                    ),
-                  );
-                },
+            ),
+            
+            // Add the profile content
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: _buildProfileContent(user),
               ),
             ),
           ],
         ),
-        body: _buildProfileView(user),
       ),
     );
   }
 
-  Widget _buildProfileView(User user) {
+  // Move the profile content to a separate method
+  Widget _buildProfileContent(User user) {
     // Extract initials for avatar
     final String initials = _getInitials(user);
     
@@ -185,12 +248,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       end: Alignment.bottomRight,
     );
 
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 20),
-        // Enhanced profile header with gradient and shadow
+        // Enhanced profile header with gradient and shadow - centered
         Container(
+          width: double.infinity, // Make sure this takes full width
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -211,57 +275,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center, // Ensure all items are centered
+            mainAxisAlignment: MainAxisAlignment.center, // Vertically center as well
             children: [
               // Avatar with gradient background
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  gradient: avatarGradient,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    initials,
-                    style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+              Center( // Explicitly center the avatar
+                child: Container(
+                  width: 120, // Slightly larger size
+                  height: 120, // Slightly larger size
+                  decoration: BoxDecoration(
+                    gradient: avatarGradient,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        fontSize: 42, // Slightly larger font
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              // Display name with enhanced styling
+              const SizedBox(height: 20), // More space
+              // Display name with enhanced styling - centered width
               if (user.displayName?.isNotEmpty ?? false)
-                Text(
-                  user.displayName!,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                SizedBox(
+                  width: double.infinity, // Make this take full width
+                  child: Text(
+                    user.displayName!,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              // Show email with subtle styling
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity, // Make this take full width
+                child: Text(
+                  user.email ?? 'No email',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
-              // Show email with subtle styling
-              const SizedBox(height: 4),
-              Text(
-                user.email ?? 'No email',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
         ),
+        
+        // Rest of the profile content remains the same
         const SizedBox(height: 24),
         
         // Account Information Card with enhanced styling
@@ -462,33 +538,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
         
         // App info section with subtle styling
         const SizedBox(height: 40),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Column(
-              children: [
-                Text(
-                  'Chrono',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  'Version 1.0.0',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        // Center(
+        //   child: Container(
+        //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        //     decoration: BoxDecoration(
+        //       color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        //       borderRadius: BorderRadius.circular(16),
+        //     ),
+        //     child: const Column(
+        //       children: [
+        //         Text(
+        //           'Chrono',
+        //           style: TextStyle(
+        //             fontSize: 14,
+        //             fontWeight: FontWeight.w500,
+        //           ),
+        //         ),
+        //         Text(
+        //           'Version 1.0.0',
+        //           style: TextStyle(
+        //             fontSize: 12,
+        //             color: Colors.grey,
+        //           ),
+        //         ),
+        //       ],
+        //     ),
+        //   ),
+        // ),
         const SizedBox(height: 32),
       ],
     );

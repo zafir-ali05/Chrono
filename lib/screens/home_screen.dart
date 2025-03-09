@@ -24,10 +24,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final GroupService _groupService = GroupService();
   final TaskService _taskService = TaskService();
-  final TextEditingController _searchController = TextEditingController();
-  final Map<String, String> _groupNameCache = {};
-  String _searchTerm = '';
-  bool _isSearching = false;
   DateTime _focusedDay = DateTime.now();
   
   // Stats for widgets
@@ -50,6 +46,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   
   // Store controllers for animations
   final Map<String, AnimationController> _animationControllers = {};
+
+  // Add this map declaration to store group names
+  final Map<String, String> _groupNameCache = {};
 
   // Modified method to dismiss keyboard only when it's actually showing
   void _dismissKeyboard() {
@@ -204,7 +203,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _searchController.dispose();
     // Dispose all animation controllers
     for (final controller in _animationControllers.values) {
       controller.dispose();
@@ -212,14 +210,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  List<Assignment> _filterAssignments(List<Assignment> assignments, String query) {
-    if (query.isEmpty) return assignments;
-    
-    final lowercaseQuery = query.toLowerCase();
-    return assignments.where((assignment) {
-      return assignment.name.toLowerCase().contains(lowercaseQuery) ||
-             assignment.className.toLowerCase().contains(lowercaseQuery);
-    }).toList();
+  List<Assignment> _filterAssignments(List<Assignment> assignments) {
+    return assignments;
   }
   
   @override
@@ -261,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             
             if (!isLoading && snapshot.hasData) {
               final assignments = snapshot.data ?? [];
-              final filteredAssignments = _filterAssignments(assignments, _searchTerm);
+              final filteredAssignments = _filterAssignments(assignments);
               
               final now = DateTime.now();
               for (final assignment in filteredAssignments) {
@@ -287,7 +279,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 // App Bar section
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 48, 16, 8),
+                    // Reduce top padding from 48 to 24 to lower the header
+                    padding: const EdgeInsets.fromLTRB(24, 72, 16, 8),
                     child: Row(
                       children: [
                         // Greeting text column
@@ -315,127 +308,55 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ],
                           ),
                         ),
-                        // Profile FAB
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ProfileScreen(),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 45,
-                            height: 45,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Theme.of(context).colorScheme.primary.withOpacity(0.7),
-                                  Theme.of(context).colorScheme.primary,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                        // Profile FAB with Transform.translate
+                        Transform.translate(
+                          offset: const Offset(0, -10), // Move up by 4 pixels
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ProfileScreen(),
                                 ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                user.displayName?.isNotEmpty == true
-                                    ? user.displayName![0].toUpperCase()
-                                    : user.email?[0].toUpperCase() ?? '?',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
+                              );
+                            },
+                            child: Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                                    Theme.of(context).colorScheme.primary,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  user.displayName?.isNotEmpty == true
+                                      ? user.displayName![0].toUpperCase()
+                                      : user.email?[0].toUpperCase() ?? '?',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                ),
-                
-                // Search bar section
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          if (_searchTerm != value) {
-                            setState(() => _searchTerm = value);
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search assignments or classes',
-                          hintStyle: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
-                            height: 1.0,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            size: 22,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
-                          ),
-                          prefixIconConstraints: const BoxConstraints(
-                            minWidth: 48,
-                            minHeight: 48,
-                          ),
-                          suffixIcon: _searchTerm.isNotEmpty
-                              ? Container(
-                                  margin: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.8),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(Icons.clear_rounded, size: 16),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchTerm = '');
-                                      FocusScope.of(context).unfocus();
-                                    },
-                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints.tightFor(width: 24, height: 24),
-                                  ),
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                        ),
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          height: 1.0,
-                        ),
-                        textAlignVertical: TextAlignVertical.center,
-                        cursorColor: Theme.of(context).colorScheme.primary,
-                      ),
                     ),
                   ),
                 ),
@@ -460,10 +381,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 else if ((snapshot.data ?? []).isEmpty)
                   SliverFillRemaining(
                     child: _buildEmptyState(context),
-                  )
-                else if (_filterAssignments(snapshot.data ?? [], _searchTerm).isEmpty)
-                  SliverFillRemaining(
-                    child: _buildNoSearchResultsState(context),
                   )
                 else ...[
                   // Assignment sections
@@ -537,29 +454,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     ),
                   ],
-                  // Search info if searching
-                  if (_searchTerm.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            'Showing ${overdue.length + dueSoon.length + upcoming.length + later.length + completed.length} results for "$_searchTerm"',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              fontStyle: FontStyle.italic,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    ),
                   // Add bottom padding for navigation bar
                   SliverPadding(
                     padding: const EdgeInsets.only(bottom: 100),
@@ -570,49 +464,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             );
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildNoSearchResultsState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 56,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No matches found',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try a different search term',
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: () {
-              _searchController.clear();
-              setState(() => _searchTerm = '');
-            },
-            icon: const Icon(Icons.clear),
-            label: const Text('Clear Search'),
-          ),
-        ],
       ),
     );
   }
@@ -698,11 +549,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (entry.value == true) {
           // Find the corresponding assignment object from all categories
           final assignmentId = entry.key;
-          final assignment = [...overdue, ...dueSoon, ...upcoming, ...later]
-              .firstWhere((a) => a.id == assignmentId, orElse: () => null as Assignment);
+          final allAssignments = [...overdue, ...dueSoon, ...upcoming, ...later];
+          Assignment? foundAssignment;
+          for (final a in allAssignments) {
+            if (a.id == assignmentId) {
+              foundAssignment = a;
+              break;
+            }
+          }
           
-          if (assignment != null) {
-            completed.add(assignment);
+          if (foundAssignment != null) {
+            completed.add(foundAssignment);
           }
         }
       }
@@ -788,29 +645,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               controller: _animationControllers['Completed']!,
               icon: Icons.check_circle_rounded,
               color: Colors.green,
-            ),
-          ),
-        ],
-        
-        // Add information about search results if searching
-        if (_searchTerm.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'Showing ${overdue.length + dueSoon.length + upcoming.length + later.length} results for "$_searchTerm"',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
-              ),
             ),
           ),
         ],
@@ -1451,18 +1285,20 @@ String _getCountdownText(DateTime dueDate) {
       stream: _assignmentService.isAssignmentCompleted(assignment.id, userId),
       builder: (context, snapshot) {
         final isCompleted = snapshot.data ?? false;
-        final bool statusChanged = assignment.isCompleted != isCompleted;
         
         // Set completion status in the Assignment object for consistency
-        assignment.isCompleted = isCompleted;
-        
-        // Play animation when an assignment is completed
-        if (statusChanged && isCompleted) {
-          animationController.reset();
-          animationController.forward();
+        final bool statusChanged = assignment.isCompleted != isCompleted;
+        if (statusChanged) {
+          // Don't trigger a global rebuild when completion status changes
+          assignment.isCompleted = isCompleted;
           
-          // Also play haptic feedback
-          HapticFeedback.mediumImpact();
+          if (statusChanged && isCompleted) {
+            animationController.reset();
+            animationController.forward();
+            
+            // Also play haptic feedback
+            HapticFeedback.mediumImpact();
+          }
         }
         
         // Status indicators with updated styling
@@ -1516,32 +1352,27 @@ String _getCountdownText(DateTime dueDate) {
         Widget titleWidget;
         Widget classNameWidget;
         
-        if (_searchTerm.isNotEmpty) {
-          titleWidget = _highlightSearchText(assignment.name, _searchTerm);
-          classNameWidget = _highlightSearchText(assignment.className, _searchTerm);
-        } else {
-          titleWidget = Text(
-            assignment.name,
-            style: TextStyle(
-              fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
-              fontSize: 15,
-              decoration: isCompleted ? TextDecoration.lineThrough : null,
-              decorationColor: Colors.black54,
-              color: isCompleted 
-                  ? Theme.of(context).colorScheme.onSurface.withOpacity(0.6) 
-                  : Theme.of(context).colorScheme.onSurface,
-            ),
-          );
-          classNameWidget = Text(
-            assignment.className,
-            style: TextStyle(
-              fontSize: 13,
-              color: isCompleted 
-                  ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7)
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          );
-        }
+        titleWidget = Text(
+          assignment.name,
+          style: TextStyle(
+            fontWeight: isOverdue ? FontWeight.w500 : FontWeight.normal,
+            fontSize: 15,
+            decoration: isCompleted ? TextDecoration.lineThrough : null,
+            decorationColor: Colors.black54,
+            color: isCompleted 
+                ? Theme.of(context).colorScheme.onSurface.withOpacity(0.6) 
+                : Theme.of(context).colorScheme.onSurface,
+          ),
+        );
+        classNameWidget = Text(
+          assignment.className,
+          style: TextStyle(
+            fontSize: 13,
+            color: isCompleted 
+                ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7)
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        );
         
         // Due date indicator widget
         Widget dueDateIndicator = Container(
@@ -1682,11 +1513,20 @@ String _getCountdownText(DateTime dueDate) {
                     ),
                     // Move embedded tasks list higher by reducing padding
                     Padding(
-                      padding: const EdgeInsets.only(top: 0, bottom: 12), // Increased bottom padding from 8 to 12
-                      child: EmbeddedTasksList(
-                        assignmentId: assignment.id,
-                        userId: _authService.currentUser?.uid ?? '',
-                        taskService: _taskService,
+                      padding: const EdgeInsets.only(top: 0, bottom: 12),
+                      child: RepaintBoundary(
+                        child: EmbeddedTasksList(
+                          assignmentId: assignment.id,
+                          userId: _authService.currentUser?.uid ?? '',
+                          taskService: _taskService,
+                          onTaskCompleted: (isCompleted) {
+                            // Never trigger state changes from here to avoid flickering
+                            // Use isolatedUpdate pattern to prevent UI tree rebuilds
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              // Intentionally empty - let the streams handle updates
+                            });
+                          },
+                        ),
                       ),
                     ),
                   ],
@@ -1696,68 +1536,6 @@ String _getCountdownText(DateTime dueDate) {
           ),
         );
       },
-    );
-  }
-
-  // Helper widget to highlight search text
-  Widget _highlightSearchText(String text, String query) {
-    if (query.isEmpty) {
-      return Text(text);
-    }
-    
-    final lowercaseText = text.toLowerCase();
-    final lowercaseQuery = query.toLowerCase();
-    
-    if (!lowercaseText.contains(lowercaseQuery)) {
-      return Text(text);
-    }
-    
-    final matches = <Match>[];
-    int start = 0;
-    while (true) {
-      final matchIndex = lowercaseText.indexOf(lowercaseQuery, start);
-      if (matchIndex == -1) break;
-      matches.add(Match(matchIndex, matchIndex + query.length));
-      start = matchIndex + query.length;
-    }
-    
-    if (matches.isEmpty) {
-      return Text(text);
-    }
-    
-    final spans = <TextSpan>[];
-    int currentIndex = 0;
-    
-    for (final match in matches) {
-      if (currentIndex < match.start) {
-        spans.add(TextSpan(text: text.substring(currentIndex, match.start)));
-      }
-      
-      spans.add(TextSpan(
-        text: text.substring(match.start, match.end),
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          backgroundColor: Color(0x33FFEB3B),
-        ),
-      ));
-      
-      currentIndex = match.end;
-    }
-    
-    if (currentIndex < text.length) {
-      spans.add(TextSpan(text: text.substring(currentIndex)));
-    }
-    
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(
-          fontSize: currentIndex == 0 ? 15 : 13,
-          color: currentIndex == 0 
-              ? Theme.of(context).colorScheme.onSurface
-              : Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        children: spans,
-      ),
     );
   }
 
@@ -1830,7 +1608,7 @@ class _SectionWrapper extends StatefulWidget {
     required this.icon,
     required this.color,
   });
-  
+
   @override
   _SectionWrapperState createState() => _SectionWrapperState();
 }
@@ -1911,24 +1689,38 @@ class _SectionWrapperState extends State<_SectionWrapper> {
           onTap: _toggleExpansion,
           child: _buildHeader(context),
         ),
-        // Content - use AnimatedBuilder with ClipRect like in calendar_screen
-        RepaintBoundary(
+        // This is the key fix: Completely isolate the assignment tiles from the section animation
+        RepaintBoundary( // Add outer boundary
           child: AnimatedBuilder(
             animation: widget.controller,
-            child: Column(
-              children: widget.assignments.map((assignment) => 
-                _buildAssignmentTile(context, assignment)
-              ).toList(),
-            ),
             builder: (context, child) {
               return ClipRect(
                 child: Align(
                   alignment: Alignment.topCenter,
                   heightFactor: widget.controller.value,
-                  child: child,
+                  child: RepaintBoundary( // Add inner boundary
+                    child: child!,
+                  ),
                 ),
               );
             },
+            // The major change: Use an IndexedStack to completely preserve state
+            child: IndexedStack(
+              index: 0, // Always show the assignments
+              sizing: StackFit.loose,
+              children: [
+                Column(
+                  children: widget.assignments.map((assignment) => 
+                    // Use an independent key that DOESN'T include completion status
+                    // This prevents rebuilds when completion status changes
+                    KeyedSubtree(
+                      key: ValueKey("assignment-${assignment.id}"), // No completion status in key
+                      child: _buildAssignmentTile(context, assignment)
+                    )
+                  ).toList(),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -2035,12 +1827,4 @@ class _SectionWrapperState extends State<_SectionWrapper> {
       subtitle: Text(assignment.className),
     );
   }
-}
-
-// Helper class for text highlighting
-class Match {
-  final int start;
-  final int end;
-  
-  Match(this.start, this.end);
 }

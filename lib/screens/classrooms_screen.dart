@@ -184,7 +184,7 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
           children: [
             // Add header section
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 48, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 72, 16, 8),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
