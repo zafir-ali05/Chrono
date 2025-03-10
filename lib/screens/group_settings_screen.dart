@@ -4,7 +4,11 @@ import '../models/assignment.dart';
 import '../services/group_service.dart';
 import '../services/auth_service.dart';
 import '../services/assignment_service.dart';
+import '../services/storage_service.dart'; // Add this import
 import '../widgets/animated_dialog.dart';
+import 'package:cached_network_image/cached_network_image.dart'; // Add this import
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class GroupSettingsScreen extends StatefulWidget {
   final Group group;
@@ -22,6 +26,9 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   late final GroupService _groupService;
   late final AuthService _authService;
   late final AssignmentService _assignmentService;
+  late final StorageService _storageService; // Add storage service
+  final ImagePicker _picker = ImagePicker(); // Add this
+  bool _isUploading = false; // Add this state variable
 
   @override
   void initState() {
@@ -29,6 +36,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     _groupService = GroupService();
     _authService = AuthService();
     _assignmentService = AssignmentService();
+    _storageService = StorageService(); // Initialize storage service
   }
 
   @override
@@ -73,7 +81,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               
               return ListView(
                 children: [
-                  // Group Info Card with updated statistics
+                  // Group Info Card with updated statistics and profile image
                   Card(
                     margin: const EdgeInsets.all(16),
                     elevation: 0,
@@ -90,25 +98,91 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                         children: [
                           Row(
                             children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    widget.group.name[0].toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w500,
-                                      color: Theme.of(context).colorScheme.primary,
+                              // Replace this Container with a profile image widget
+                              Stack(
+                                children: [
+                                  FutureBuilder<String?>(
+                                    future: _storageService.getGroupImageUrl(widget.group.id),
+                                    builder: (context, snapshot) {
+                                      final imageUrl = snapshot.data ?? widget.group.imageUrl;
+                                      
+                                      return GestureDetector(
+                                        onTap: () => _showImageSourceDialog(context),
+                                        child: Container(
+                                          width: 64,
+                                          height: 64,
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: _isUploading
+                                            ? const Center(child: CircularProgressIndicator())
+                                            : ClipRRect(
+                                                borderRadius: BorderRadius.circular(16),
+                                                child: imageUrl != null
+                                                  ? CachedNetworkImage(
+                                                      imageUrl: imageUrl,
+                                                      fit: BoxFit.cover,
+                                                      placeholder: (context, url) => Center(
+                                                        child: Text(
+                                                          widget.group.name[0].toUpperCase(),
+                                                          style: TextStyle(
+                                                            fontSize: 24,
+                                                            fontWeight: FontWeight.w500,
+                                                            color: Theme.of(context).colorScheme.primary,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      errorWidget: (context, url, error) => Center(
+                                                        child: Text(
+                                                          widget.group.name[0].toUpperCase(),
+                                                          style: TextStyle(
+                                                            fontSize: 24,
+                                                            fontWeight: FontWeight.w500,
+                                                            color: Theme.of(context).colorScheme.primary,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    )
+                                                  : Center(
+                                                      child: Text(
+                                                        widget.group.name[0].toUpperCase(),
+                                                        style: TextStyle(
+                                                          fontSize: 24,
+                                                          fontWeight: FontWeight.w500,
+                                                          color: Theme.of(context).colorScheme.primary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  
+                                  // Small camera icon at the bottom right
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.camera_alt,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
+                              
                               const SizedBox(width: 16),
+                              
+                              // Rest of your existing code for group name and code
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,48 +291,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   else if (members.isEmpty)
                     _buildNoMembersView(context, widget.group.members.length)
                   else
-                    ...members.map((member) => ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: member['isOwner'] == true
-                            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                            : Theme.of(context).colorScheme.secondaryContainer,
-                        child: Text(
-                          (member['displayName'] ?? 'User').toString().isNotEmpty 
-                              ? (member['displayName'] ?? 'U').toString()[0].toUpperCase()
-                              : 'U',
-                          style: TextStyle(
-                            color: member['isOwner'] == true
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.onSecondaryContainer,
-                          ),
-                        ),
-                      ),
-                      title: Text(member['displayName']?.toString() ?? 'Unknown User'),
-                      subtitle: member['isOwner'] == true
-                          ? Row(
-                              children: [
-                                Icon(
-                                  Icons.star,
-                                  size: 14,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Classroom Owner',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : member['email'] != null && member['email'].toString().isNotEmpty
-                              ? Text(
-                                  member['email'].toString(),
-                                  style: const TextStyle(fontSize: 12),
-                                )
-                              : null,
-                    )).toList(),
+                    ...members.map((member) => _buildMemberTile(context, member)).toList(),
 
                   const SizedBox(height: 24),
                   
@@ -446,5 +479,166 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         ),
       ),
     );
+  }
+
+  // New method to build member tile with profile image
+  Widget _buildMemberTile(BuildContext context, Map<String, dynamic> member) {
+    final userId = member['uid'] as String?;
+    final displayName = member['displayName'] as String? ?? 'Unknown User';
+    final email = member['email'] as String? ?? '';
+    final photoURL = member['photoURL'] as String?; // Get photoURL directly from member data
+    final isOwner = member['isOwner'] as bool? ?? false;
+    
+    return ListTile(
+      leading: CircleAvatar(
+        radius: 20, // Set explicit radius for consistent size
+        backgroundColor: isOwner
+            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+            : Theme.of(context).colorScheme.secondaryContainer,
+        child: photoURL != null && photoURL.isNotEmpty
+            ? ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: photoURL,
+                  fit: BoxFit.cover,
+                  width: 40, // Set explicit width
+                  height: 40, // Set explicit height
+                  placeholder: (context, url) => _buildInitial(context, displayName, isOwner),
+                  errorWidget: (context, url, error) => _buildInitial(context, displayName, isOwner),
+                ),
+              )
+            : _buildInitial(context, displayName, isOwner),
+      ),
+      title: Text(
+        displayName,
+        style: TextStyle(
+          fontWeight: isOwner ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      subtitle: isOwner
+          ? Row(
+              children: [
+                Icon(
+                  Icons.star,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Classroom Owner',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            )
+          : email.isNotEmpty
+              ? Text(
+                  email,
+                  style: const TextStyle(fontSize: 12),
+                )
+              : null,
+    );
+  }
+
+  // Helper method to build the initial avatar
+  Widget _buildInitial(BuildContext context, String displayName, bool isOwner) {
+    return Center(
+      child: Text(
+        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
+        style: TextStyle(
+          color: isOwner
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.onSecondaryContainer,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  // Add this method to show the image source dialog
+  Future<void> _showImageSourceDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Change Classroom Photo'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                GestureDetector(
+                  child: const Text('Take a Photo'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickAndUploadImage(ImageSource.camera);
+                  },
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  child: const Text('Choose from Gallery'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickAndUploadImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Add this method to handle image picking and uploading
+  Future<void> _pickAndUploadImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile == null) return;
+      
+      setState(() {
+        _isUploading = true;
+      });
+      
+      // Upload image to Firebase Storage
+      final imageFile = File(pickedFile.path);
+      final downloadUrl = await _storageService.uploadGroupImage(widget.group.id, imageFile);
+      
+      if (downloadUrl != null) {
+        // Update group with new image URL
+        await _groupService.updateGroupImage(widget.group.id, downloadUrl);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Classroom picture updated successfully'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating classroom picture: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
   }
 }

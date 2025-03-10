@@ -4,7 +4,7 @@ import '../models/assignment.dart';
 import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
 import '../utils/date_utils.dart' as app_date_utils;
-import 'package:animations/animations.dart';
+//import 'package:animations/animations.dart';
 import 'assignment_details_screen.dart';
 import '../widgets/embedded_tasks_list.dart';
 import '../services/task_service.dart';

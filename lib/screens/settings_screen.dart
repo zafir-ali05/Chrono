@@ -3,8 +3,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+//import 'package:url_launcher/url_launcher.dart';
 import '../services/feedback_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -391,11 +392,18 @@ class SettingsScreen extends StatelessWidget {
 
   // Show feedback dialog with email functionality
   void _showFeedbackDialog(BuildContext context) {
+    final feedbackService = FeedbackService();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final messageController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final feedbackService = FeedbackService();
+
+    // Pre-fill with user data if available
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      nameController.text = user.displayName ?? '';
+      emailController.text = user.email ?? '';
+    }
 
     showDialog(
       context: context,
@@ -403,43 +411,34 @@ class SettingsScreen extends StatelessWidget {
         title: const Text('Send Feedback'),
         content: Form(
           key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter your name' : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              TextFormField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: messageController,
+                decoration: const InputDecoration(
+                  labelText: 'Feedback',
+                  hintText: 'Tell us what you think...',
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter your email' : null,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: messageController,
-                  decoration: const InputDecoration(
-                    labelText: 'Message',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter your message' : null,
-                  maxLines: 4,
-                ),
-              ],
-            ),
+                maxLines: 5,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your feedback';
+                  }
+                  return null;
+                },
+              ),
+            ],
           ),
         ),
         actions: [
@@ -449,27 +448,45 @@ class SettingsScreen extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () async {
-              if (formKey.currentState?.validate() ?? false) {
+              if (formKey.currentState!.validate()) {
                 try {
+                  // Show loading indicator
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                  
                   await feedbackService.sendFeedback(
+                    message: messageController.text,
                     name: nameController.text,
                     email: emailController.text,
-                    message: messageController.text,
                   );
+                  
+                  // Close loading dialog and feedback dialog
                   if (context.mounted) {
-                    Navigator.pop(context);
+                    Navigator.pop(context); // Close loading dialog
+                    Navigator.pop(context); // Close feedback dialog
+                    
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Feedback sent successfully!'),
+                        content: Text('Thank you for your feedback!'),
+                        backgroundColor: Colors.green,
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
                   }
                 } catch (e) {
+                  // Close loading dialog if an error occurs
                   if (context.mounted) {
+                    Navigator.pop(context); // Close loading dialog
+                    
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Error sending feedback: ${e.toString()}'),
+                        content: Text('Error: ${e.toString()}'),
+                        backgroundColor: Colors.red,
                         behavior: SnackBarBehavior.floating,
                       ),
                     );

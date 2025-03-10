@@ -8,12 +8,12 @@ import '../services/auth_service.dart';
 import '../services/group_service.dart';
 import '../utils/date_utils.dart';
 import '../services/chat_service.dart';
-import '../models/message.dart';
+//import '../models/message.dart';
 import 'group_settings_screen.dart'; 
 import 'assignment_details_screen.dart';
 import '../widgets/embedded_tasks_list.dart';
 import '../services/task_service.dart';
-import '../widgets/group_chat_widget.dart';
+//import '../widgets/group_chat_widget.dart';
 
 
 class GroupDetailsScreen extends StatefulWidget {

@@ -5,6 +5,8 @@ import '../services/group_service.dart';
 import '../services/auth_service.dart';
 import '../models/group.dart';
 import 'group_details_screen.dart';
+import '../services/storage_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ClassroomsScreen extends StatefulWidget {
   const ClassroomsScreen({super.key});
@@ -16,6 +18,50 @@ class ClassroomsScreen extends StatefulWidget {
 class _ClassroomsScreenState extends State<ClassroomsScreen> {
   final GroupService _groupService = GroupService();
   final AuthService _authService = AuthService();
+  final StorageService _storageService = StorageService(); // Move this to class level
+  
+  // Add a cache for group image URLs
+  final Map<String, String?> _groupImageCache = {};
+  
+  @override
+  void initState() {
+    super.initState();
+    // Preload group images when screen initializes
+    _preloadGroupImages();
+  }
+  
+  // Preload group images to reduce visible loading time
+  Future<void> _preloadGroupImages() async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) return;
+      
+      // Get groups first
+      final groups = await _groupService.getUserGroupsOnce(user.uid);
+      
+      // Start loading all images in parallel
+      final futures = groups.map((group) async {
+        try {
+          final imageUrl = await _storageService.getGroupImageUrl(group.id);
+          // Store in cache
+          _groupImageCache[group.id] = imageUrl;
+        } catch (e) {
+          // Ignore errors, just cache as null
+          _groupImageCache[group.id] = null;
+        }
+      }).toList();
+      
+      // Wait for all to complete
+      await Future.wait(futures);
+      
+      // Trigger rebuild if widget is still mounted
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error preloading group images: $e');
+    }
+  }
 
   Future<void> _showCreateGroupDialog() async {
     final nameController = TextEditingController();
@@ -519,6 +565,9 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
       end: Alignment.bottomRight,
     );
 
+    // Get cached URL or group's stored URL
+    final imageUrl = _groupImageCache[group.id] ?? group.imageUrl;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
@@ -549,7 +598,7 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Group logo with gradient
+                  // Group logo with profile image or gradient fallback
                   Container(
                     width: 60,
                     height: 60,
@@ -564,18 +613,49 @@ class _ClassroomsScreenState extends State<ClassroomsScreen> {
                         ),
                       ],
                     ),
-                    child: Center(
-                      child: Text(
-                        group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: imageUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            memCacheHeight: 120, // 2x size for better quality
+                            memCacheWidth: 120,
+                            placeholder: (context, url) => Center(
+                              child: Text(
+                                group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Center(
+                              child: Text(
+                                group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              group.name.isNotEmpty ? group.name[0].toUpperCase() : '#',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
                     ),
                   ),
                   const SizedBox(width: 16),
+                  // Rest of the existing row content
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/auth_service.dart';
+import '../services/storage_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
-import '../providers/theme_provider.dart';
 import 'settings_screen.dart';
 import '../utils/snackbar_utils.dart';
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
@@ -22,6 +24,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthService _auth = AuthService();
+  final StorageService _storageService = StorageService();
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploading = false;
 
   Future<void> _showChangePasswordDialog(BuildContext context) async {
     final currentPasswordController = TextEditingController();
@@ -115,6 +120,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showImageSourceDialog() async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Image Source'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                GestureDetector(
+                  child: const Text('Take a Photo'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickAndUploadImageFromSource(ImageSource.camera);
+                  },
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  child: const Text('Choose from Gallery'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickAndUploadImageFromSource(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndUploadImageFromSource(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile == null) return;
+      
+      setState(() {
+        _isUploading = true;
+      });
+      
+      // Upload image to Firebase Storage
+      final imageFile = File(pickedFile.path);
+      final downloadUrl = await _storageService.uploadProfileImage(imageFile);
+      
+      if (downloadUrl != null) {
+        // Update profile with new image URL
+        await _auth.updateProfile(photoURL: downloadUrl);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile picture updated successfully'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile picture: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -278,32 +367,103 @@ class _ProfileScreenState extends State<ProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.center, // Ensure all items are centered
             mainAxisAlignment: MainAxisAlignment.center, // Vertically center as well
             children: [
-              // Avatar with gradient background
+              // Avatar with gradient background and edit button
               Center( // Explicitly center the avatar
-                child: Container(
-                  width: 120, // Slightly larger size
-                  height: 120, // Slightly larger size
-                  decoration: BoxDecoration(
-                    gradient: avatarGradient,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                        fontSize: 42, // Slightly larger font
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                child: Stack(
+                  children: [
+                    // The avatar/profile image
+                    GestureDetector(
+                      onTap: _showImageSourceDialog,
+                      child: Container(
+                        width: 120, // Slightly larger size
+                        height: 120, // Slightly larger size
+                        decoration: BoxDecoration(
+                          gradient: avatarGradient,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: _isUploading
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 3,
+                                ),
+                              )
+                            : ClipOval(
+                                child: user.photoURL != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: user.photoURL!,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) => Center(
+                                          child: Text(
+                                            initials,
+                                            style: const TextStyle(
+                                              fontSize: 42,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        errorWidget: (context, url, error) => Center(
+                                          child: Text(
+                                            initials,
+                                            style: const TextStyle(
+                                              fontSize: 42,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Center(
+                                        child: Text(
+                                          initials,
+                                          style: const TextStyle(
+                                            fontSize: 42,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                              ),
                       ),
                     ),
-                  ),
+                    // Edit button positioned at bottom-right
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.camera_alt,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onPressed: _showImageSourceDialog,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20), // More space

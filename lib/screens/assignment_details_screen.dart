@@ -5,8 +5,8 @@ import '../models/task.dart';
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
 import '../services/assignment_service.dart';
-import 'package:animations/animations.dart';
-import '../utils/completion_effects.dart';
+//import 'package:animations/animations.dart';
+//import '../utils/completion_effects.dart';
 
 
 class AssignmentDetailsScreen extends StatefulWidget {

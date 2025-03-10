@@ -10,7 +10,7 @@ import '../widgets/embedded_tasks_list.dart';
 import '../services/task_service.dart';
 import 'profile_screen.dart';
 import 'calendar_screen.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -341,17 +341,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   ),
                                 ],
                               ),
-                              child: Center(
-                                child: Text(
-                                  user.displayName?.isNotEmpty == true
-                                      ? user.displayName![0].toUpperCase()
-                                      : user.email?[0].toUpperCase() ?? '?',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                              child: ClipOval(
+                                child: user.photoURL != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: user.photoURL!,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) => Center(
+                                          child: Text(
+                                            user.displayName?.isNotEmpty == true
+                                                ? user.displayName![0].toUpperCase()
+                                                : user.email?[0].toUpperCase() ?? '?',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        errorWidget: (context, url, error) => Center(
+                                          child: Text(
+                                            user.displayName?.isNotEmpty == true
+                                                ? user.displayName![0].toUpperCase()
+                                                : user.email?[0].toUpperCase() ?? '?',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Center(
+                                        child: Text(
+                                          user.displayName?.isNotEmpty == true
+                                              ? user.displayName![0].toUpperCase()
+                                              : user.email?[0].toUpperCase() ?? '?',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
                               ),
                             ),
                           ),

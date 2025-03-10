@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:random_string/random_string.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/group.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
+//import 'package:flutter/material.dart';
+//import 'package:flutter/cupertino.dart';
 
 class GroupService {
   final CollectionReference _groupsCollection = 
@@ -82,6 +82,21 @@ class GroupService {
 
     final updatedMembers = [...group.members, userId];
     await _groupsCollection.doc(groupId).update({'members': updatedMembers});
+    
+    // Add this line to sync the current user's data to Firestore when joining a group
+    if (_auth.currentUser != null && _auth.currentUser!.uid == userId) {
+      // Sync current user data to Firestore
+      await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .set({
+          'uid': userId,
+          'displayName': _auth.currentUser!.displayName ?? 'Member',
+          'email': _auth.currentUser!.email ?? '',
+          'photoURL': _auth.currentUser!.photoURL ?? '',
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+    }
 
     return Group.fromMap({
       ...groupData,
@@ -210,6 +225,19 @@ class GroupService {
     }
   }
 
+  Future<void> updateGroupImage(String groupId, String imageUrl) async {
+    try {
+      await _groupsCollection.doc(groupId).update({
+        'imageUrl': imageUrl,
+      });
+      
+      print('Group image URL updated successfully');
+    } catch (e) {
+      print('Error updating group image: $e');
+      throw Exception('Failed to update group image: $e');
+    }
+  }
+
   Stream<List<String>> getGroupMemberNames(String groupId) {
     return _firestore
         .collection('groups')
@@ -228,74 +256,85 @@ class GroupService {
   }
 
   Stream<List<Map<String, dynamic>>> getGroupMembers(String groupId) {
-    // Add print for debugging
-    print('Fetching members for group: $groupId');
-    
-    return _groupsCollection
-        .doc(groupId)
-        .snapshots()
-        .asyncMap((groupDoc) async {
+    return _firestore.collection('groups').doc(groupId).snapshots().asyncMap((groupDoc) async {
       if (!groupDoc.exists) {
-        print('Group document does not exist');
-        return [];
-      }
-
-      final groupData = groupDoc.data() as Map<String, dynamic>;
-      
-      // Ensure we extract the members as a List<dynamic> then cast to String
-      final membersList = groupData['members'];
-      if (membersList == null || membersList is! List) {
-        print('Members list is null or not a List: $membersList');
         return [];
       }
       
-      final List<String> memberIds = membersList.cast<String>();
-      print('Found ${memberIds.length} member IDs'); // Debug print
-
+      final data = groupDoc.data()!;
+      final memberIds = List<String>.from(data['members'] ?? []);
       final List<Map<String, dynamic>> memberDetails = [];
       
-      // Fetch user details for each member ID
-      for (String memberId in memberIds) {
+      for (int i = 0; i < memberIds.length; i++) {
         try {
-          final userDoc = await _firestore
-              .collection('users')
-              .doc(memberId)
-              .get();
-
-          if (userDoc.exists) {
-            final userData = userDoc.data() ?? {};
-            memberDetails.add({
-              'uid': memberId,
-              'displayName': userData['displayName'] ?? 'User ${memberDetails.length + 1}',
-              'email': userData['email'] ?? '',
-              'isOwner': memberId == groupData['creatorId'],
-            });
-            print('Added member: ${userData['displayName']}');
-          } else {
-            print('User document not found for ID: $memberId');
-            // Add placeholder for users that don't exist anymore
-            memberDetails.add({
-              'uid': memberId,
-              'displayName': 'User ${memberDetails.length + 1}',
-              'email': '',
-              'isOwner': memberId == groupData['creatorId'],
-            });
-          }
-        } catch (e) {
-          print('Error fetching user details for $memberId: $e');
-          // Still add a placeholder
+          final userId = memberIds[i];
+          // Get user profile data using the existing auth service instance
+          final userData = await _auth.currentUser?.uid == userId
+              ? {
+                  'uid': _auth.currentUser!.uid,
+                  'displayName': _auth.currentUser!.displayName ?? 'User ${i + 1}',
+                  'email': _auth.currentUser!.email ?? '',
+                  'photoURL': _auth.currentUser!.photoURL ?? '',
+                }
+              : await _getUserProfileFromFirestore(userId);
+          
           memberDetails.add({
-            'uid': memberId,
-            'displayName': 'User ${memberDetails.length + 1}',
+            'uid': userId,
+            'displayName': userData['displayName'] ?? 'User ${i + 1}',
+            'email': userData['email'] ?? '',
+            'photoURL': userData['photoURL'] ?? '',
+            'isOwner': userId == data['creatorId'],
+          });
+        } catch (e) {
+          print('Error fetching user details: $e');
+          memberDetails.add({
+            'uid': memberIds[i],
+            'displayName': 'User ${i + 1}',
             'email': '',
-            'isOwner': memberId == groupData['creatorId'],
+            'photoURL': '',
+            'isOwner': memberIds[i] == data['creatorId'],
           });
         }
       }
-
-      print('Returning ${memberDetails.length} member details'); // Debug print
+      
       return memberDetails;
     });
+  }
+
+  Future<Map<String, dynamic>> _getUserProfileFromFirestore(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        return {
+          'uid': userId,
+          'displayName': doc.data()?['displayName'] ?? 'Member',
+          'email': doc.data()?['email'] ?? '',
+          'photoURL': doc.data()?['photoURL'] ?? '',
+        };
+      }
+      
+      // If user document doesn't exist in Firestore
+      // Try to find this user in Firebase Auth (only works for current user)
+      if (_auth.currentUser?.uid == userId) {
+        final currentUser = _auth.currentUser!;
+        return {
+          'uid': userId,
+          'displayName': currentUser.displayName ?? 'Member',
+          'email': currentUser.email ?? '',
+          'photoURL': currentUser.photoURL ?? '',
+        };
+      }
+    } catch (e) {
+      print('Error fetching user data from Firestore: $e');
+    }
+    
+    // If we can't find data, return a generic name
+    return {
+      'uid': userId,
+      'displayName': 'Member',
+      'email': '',
+      'photoURL': '',
+    };
   }
 
   Future<String> getGroupName(String groupId) async {
@@ -306,6 +345,23 @@ class GroupService {
     } catch (e) {
       print('Error fetching group name: $e');
       return 'Unknown Group';
+    }
+  }
+
+  // Add this method to your GroupService class
+  Future<List<Group>> getUserGroupsOnce(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('groups')
+          .where('members', arrayContains: userId)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => Group.fromMap(doc.data()))
+          .toList();
+    } catch (e) {
+      print('Error getting user groups once: $e');
+      throw Exception('Failed to fetch user groups');
     }
   }
 }

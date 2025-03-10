@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';  // Add this import
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
+import 'services/auth_service.dart';
+//import 'package:flutter/cupertino.dart';
 import 'providers/theme_provider.dart';
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
-import 'screens/classrooms_screen.dart';
-import 'screens/profile_screen.dart';
+//import 'screens/home_screen.dart';
+//import 'screens/classrooms_screen.dart';
+//import 'screens/profile_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/main_screen.dart';
 import 'services/notification_service.dart';
@@ -19,6 +21,16 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize Firebase Storage
+  FirebaseStorage.instance;
+
+  // Sync current user data if signed in
+  final auth = FirebaseAuth.instance;
+  if (auth.currentUser != null) {
+    final authService = AuthService();
+    await authService.syncUserToFirestore();
+  }
 
   // Create and register the task service singleton
   final taskService = TaskService();

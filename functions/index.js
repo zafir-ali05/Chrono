@@ -30,34 +30,53 @@ const transporter = nodemailer.createTransport({
 
 // Cloud Function to send feedback
 exports.sendFeedback = functions.https.onCall(async (data, context) => {
+    console.log("Function called with data:", data);
+    console.log("Auth context:", context.auth);
+    
     // Verify user is authenticated
     if (!context.auth) {
+        console.error("Authentication failed - user not logged in");
         throw new functions.https.HttpsError(
             'unauthenticated',
             'You must be logged in to send feedback.'
         );
     }
 
+    // Validate required fields
+    if (!data.name || !data.email || !data.message) {
+        console.error("Missing required fields in request");
+        throw new functions.https.HttpsError(
+            'invalid-argument',
+            'Missing required fields: name, email, or message.'
+        );
+    }
+
     try {
         const mailOptions = {
-            from: "zafir.ali05@gmail.com", // Your email
-            to: "zafir.ali05@gmail.com", // Where to receive feedback
+            from: process.env.GMAIL_USER,
+            to: process.env.GMAIL_USER, // Where to receive feedback
             subject: `Chrono Feedback from ${data.name}`,
             text: `
-User: ${data.name}
-Email: ${data.email}
-Message: ${data.message}
-User ID: ${context.auth.uid}
+                User: ${data.name}
+                Email: ${data.email}
+                Message: ${data.message}
+                User ID: ${context.auth.uid}
             `.trim(),
         };
 
+        console.log("Sending email with options:", {
+            to: process.env.GMAIL_USER,
+            subject: mailOptions.subject
+        });
+
         await transporter.sendMail(mailOptions);
+        console.log("Email sent successfully");
         return { success: true };
     } catch (error) {
         console.error("Error sending feedback email:", error);
         throw new functions.https.HttpsError(
             'internal',
-            'Error sending feedback email.'
+            'Error sending feedback email: ' + error.message
         );
     }
 });
