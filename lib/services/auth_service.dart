@@ -28,7 +28,7 @@ class AuthService {
       return userCredential;
     } catch (e) {
       print('Error signing in: $e');
-      throw e;
+      throw getReadableAuthError(e);
     }
   }
 
@@ -47,13 +47,13 @@ class AuthService {
       // Force reload to get updated user info
       await userCredential.user?.reload();
       
-      // Sync user data to Firestore
+      // Sync the updated user data to Firestore
       await syncUserToFirestore();
       
       return userCredential;
     } catch (e) {
       print('Error registering: $e');
-      throw e;
+      throw getReadableAuthError(e);
     }
   }
 
@@ -219,5 +219,38 @@ class AuthService {
     } catch (e) {
       print('Error syncing specific user profile to Firestore: $e');
     }
+  }
+
+  // Add this method to your AuthService class in auth_service.dart
+  String getReadableAuthError(dynamic error) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'invalid-email':
+          return 'Please enter a valid email address';
+        case 'user-disabled':
+          return 'This account has been disabled';
+        case 'user-not-found':
+          return 'No account found with this email';
+        case 'wrong-password':
+          return 'Incorrect password';
+        case 'email-already-in-use':
+          return 'An account already exists with this email';
+        case 'operation-not-allowed':
+          return 'This sign-in method is not enabled';
+        case 'weak-password':
+          return 'Password is too weak. Please use a stronger password';
+        case 'too-many-requests':
+          return 'Too many sign-in attempts. Please try again later';
+        case 'network-request-failed':
+          return 'Network error. Please check your connection';
+        case 'invalid-credential':
+          return 'The login information is invalid';
+        case 'account-exists-with-different-credential':
+          return 'An account already exists with the same email but different sign-in method';
+        default:
+          return 'Authentication error: ${error.code}';
+      }
+    }
+    return 'An error occurred. Please try again';
   }
 }

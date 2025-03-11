@@ -44,6 +44,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         }
       } catch (e) {
         setState(() {
+          // The error is already user-friendly from our auth service
           _error = e.toString();
         });
       }

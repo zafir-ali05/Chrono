@@ -49,6 +49,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
   late Animation<double> _fabRotationAnimation;
   final _fabKey = GlobalKey();
   bool _isChatVisible = false;
+  bool _needsRefresh = false; // Make sure this variable is defined properly
+
+  // Add this property to the _GroupDetailsScreenState class
+  final Map<String, ValueNotifier<bool>> _assignmentRefreshNotifiers = {};
 
   @override
   void initState() {
@@ -83,6 +87,17 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
     
     // Initialize animation controllers for each section
     _initAnimationControllers();
+
+    // Listen for task status changes to force refreshes
+    _taskService.onTaskStatusChanged.listen((event) {
+      // Force refresh the UI when a task status changes
+      if (mounted) {
+        setState(() {
+          // This triggers a rebuild with the latest data from Firestore
+          _needsRefresh = true; // This should now work properly
+        });
+      }
+    });
   }
   
   void _initAnimationControllers() {
@@ -128,66 +143,104 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
       controller.dispose();
     }
     
+    // Add this line to dispose of the notifiers
+    for (final notifier in _assignmentRefreshNotifiers.values) {
+      notifier.dispose();
+    }
+    
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.group.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline), // Changed icon to info_outline
-            onPressed: _showGroupOptions,
+      // Use a regular SingleChildScrollView instead of CustomScrollView
+      body: Container(
+        // Add gradient background
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.surface.withOpacity(0.95),
+            ],
           ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          _buildMainContent(),
-          // Comment out chat visibility
-          // if (_isChatVisible) _buildChatBox(),
-        ],
-      ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Comment out the chat button
-          /*
-          Padding(
-            padding: const EdgeInsets.only(left: 32.0),
-            child: FloatingActionButton.small(
-              key: _fabKey,
-              heroTag: 'chatButton',
-              onPressed: _toggleChat,
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              child: RotationTransition(
-                turns: _fabRotationAnimation,
-                child: const Icon(Icons.close),
-              ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            // Add padding for better visual appearance
+            padding: const EdgeInsets.only(bottom: 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // App bar as a regular widget
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      Expanded(
+                        child: Text(
+                          widget.group.name,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline),
+                        onPressed: _showGroupOptions,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Main content
+                _buildMainContent(),
+              ],
             ),
           ),
-          const SizedBox(width: 16),
-          */
-          FloatingActionButton(
-            heroTag: 'addButton',
-            onPressed: () => _showAddAssignmentDialog(context),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            child: const Icon(Icons.add),
-          ),
-        ],
+        ),
       ),
+      // Keep the floating action button
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 60),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FloatingActionButton(
+              heroTag: 'addButton',
+              onPressed: () => _showAddAssignmentDialog(context),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: const Icon(Icons.add),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
   
   Widget _buildMainContent() {
     return StreamBuilder<List<Assignment>>(
       stream: _assignmentService.getGroupAssignments(widget.group.id).map((assignments) {
-        // Deduplicate assignments by ID before displaying
-        final uniqueAssignments = <String, Assignment>{};
+        // Fix the deduplication logic to properly handle assignments
+        final Map<String, Assignment> uniqueAssignments = {};
+        
+        // Use a more robust approach to deduplicate
         for (final assignment in assignments) {
-          uniqueAssignments[assignment.id] = assignment;
+          // Check if we already have this assignment
+          if (!uniqueAssignments.containsKey(assignment.id) || 
+              uniqueAssignments[assignment.id]!.dueDate.isBefore(assignment.dueDate)) {
+            // Only add if we don't have it yet or if this one is more recent
+            uniqueAssignments[assignment.id] = assignment;
+          }
         }
         
         // Sort by due date (earliest first) after deduplication
@@ -316,11 +369,20 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
           return const Center(child: CircularProgressIndicator());
         }
         
-        // Now assignments have proper isCompleted flags
+        // Ensure we don't have any duplicates by ID
         final assignmentsWithStatus = snapshot.data!;
+        final seenIds = <String>{};
+        final uniqueAssignments = <Assignment>[];
+        
+        for (final assignment in assignmentsWithStatus) {
+          if (!seenIds.contains(assignment.id)) {
+            seenIds.add(assignment.id);
+            uniqueAssignments.add(assignment);
+          }
+        }
         
         // Categorize assignments
-        for (final assignment in assignmentsWithStatus) {
+        for (final assignment in uniqueAssignments) {
           if (assignment.isCompleted) {
             completed.add(assignment);
           } else if (assignment.dueDate.isBefore(now)) {
@@ -342,8 +404,10 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
           _expandedSections['Completed'] = _expandedSections['Completed'] ?? false;
         }
         
-        return ListView(
-          padding: const EdgeInsets.only(bottom: 100), // Make room for FABs
+        // Replace ListView with a Column since scrolling is handled by CustomScrollView
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (overdue.isNotEmpty) ...[
               RepaintBoundary(
@@ -580,7 +644,15 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
                     MaterialPageRoute(
                       builder: (context) => AssignmentDetailsScreen(assignment: assignment),
                     ),
-                  );
+                  ).then((_) {
+                    // Force refresh when returning from assignment details
+                    if (mounted) {
+                      setState(() {
+                        _needsRefresh = true; // For calendar screen
+                        // For group_details_screen, add this variable if it doesn't exist
+                      });
+                    }
+                  });
                 },
                 child: Padding(
                   padding: const EdgeInsets.all(4),
@@ -660,11 +732,47 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
               ),
               // Move embedded tasks list higher by reducing padding
               Padding(
-                padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
-                child: EmbeddedTasksList(
-                  assignmentId: assignment.id,
-                  userId: _authService.currentUser?.uid ?? '',
-                  taskService: _taskService,
+                padding: const EdgeInsets.only(top: 0, bottom: 4),
+                child: RepaintBoundary(
+                  child: Builder(
+                    builder: (context) {
+                      // Create or get a ValueNotifier for this specific assignment
+                      final notifier = _assignmentRefreshNotifiers.putIfAbsent(
+                        assignment.id, 
+                        () => ValueNotifier<bool>(false)
+                      );
+                      
+                      return KeyedSubtree(
+                        // Use a stable key that doesn't include the current timestamp
+                        key: ValueKey('tasks-${assignment.id}'),
+                        child: EmbeddedTasksList(
+                          assignmentId: assignment.id,
+                          userId: _authService.currentUser?.uid ?? '',
+                          taskService: _taskService,
+                          onTaskCompleted: (hasCompletedTasks) {
+                            // Use our ValueNotifier to prevent excessive rebuilds
+                            if (!notifier.value) {
+                              notifier.value = true; // Set flag to prevent multiple calls
+                              
+                              // Use post-frame callback to defer changes
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) {
+                                  setState(() {
+                                    _needsRefresh = true;
+                                  });
+                                  
+                                  // Reset notifier after a delay to allow future updates
+                                  Future.delayed(const Duration(milliseconds: 500), () {
+                                    notifier.value = false;
+                                  });
+                                }
+                              });
+                            }
+                          },
+                        ),
+                      );
+                    }
+                  ),
                 ),
               ),
             ],
@@ -1080,15 +1188,16 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
             ),
             TextButton(
               onPressed: () async {
-                final confirmed = await _showDeleteConfirmation(dialogContext);  // Pass dialogContext
+                final confirmed = await _showDeleteConfirmation(dialogContext);
                 if (confirmed == true) {
                   // Close dialog first
                   Navigator.of(dialogContext).pop();
                   
                   try {
+                    // FIXED: Use positional parameters instead of named parameters
                     await _assignmentService.deleteAssignment(
-                      groupId: widget.group.id,
-                      assignmentId: assignment.id,
+                      assignment.id,    // First parameter (assignmentId)
+                      widget.group.id   // Second parameter (groupId)
                     );
                     
                     // Show deletion message
@@ -1102,15 +1211,7 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
                       );
                     }
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error: ${e.toString()}'),
-                          behavior: SnackBarBehavior.floating,
-                          margin: const EdgeInsets.all(16),
-                        ),
-                      );
-                    }
+                    // Rest of your error handling code
                   }
                 }
               },
@@ -1158,6 +1259,40 @@ class _GroupDetailsScreenState extends State<GroupDetailsScreen> with TickerProv
     
     await Future.wait(futures);
     return result;
+  }
+
+  // Example method for deleting an assignment
+  void _deleteAssignment(Assignment assignment) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // IMPORTANT: Pass both the assignment ID AND the group ID
+      await _assignmentService.deleteAssignment(
+        assignment.id,
+        widget.group.id  // Make sure you're passing the group ID
+      );
+
+      // Pop the loading dialog
+      Navigator.of(context).pop();
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Assignment deleted successfully')),
+      );
+    } catch (e) {
+      // Pop the loading dialog
+      Navigator.of(context).pop();
+      
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting assignment: ${e.toString()}')),
+      );
+    }
   }
 }
 

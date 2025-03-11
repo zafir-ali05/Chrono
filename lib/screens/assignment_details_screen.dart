@@ -405,6 +405,14 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> with 
                                               userId: userId,
                                               complete: newCompletionState,
                                             );
+                                            
+                                            // Force reload task list to reflect task status changes
+                                            if (mounted) {
+                                              setState(() {
+                                                // This will trigger a reload of the task list
+                                                _needsRebuild = true;
+                                              });
+                                            }
                                           } finally {
                                             if (mounted) {
                                               // Reset loading state
@@ -802,162 +810,79 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> with 
     );
   }
 
-  // Update the _buildEnhancedTaskTile method to manage task state locally
+  // Update the _buildEnhancedTaskTile method to remove animations
   Widget _buildEnhancedTaskTile(Task task) {
-    // Get animation controller for this task
-    final animationController = _getAnimationController(task.id);
-    
-    // Use a local cached version of the task to prevent UI flickers
-    // This avoids retrieving task state during animation
-    final cachedTask = Task(
-      id: task.id,
-      assignmentId: task.assignmentId,
-      userId: task.userId,
-      title: task.title,
-      isCompleted: task.isCompleted,
-      createdAt: task.createdAt,
-      completedAt: task.completedAt,
-    );
-    
-    // Wrap in animated container with key for proper reconciliation
-    return AnimatedOpacity(
-      key: ValueKey("task-${task.id}-${task.isCompleted}"),
-      duration: const Duration(milliseconds: 200),
-      opacity: 1.0,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-                spreadRadius: 0.5,
-              ),
-            ],
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3),
-              width: 0.5,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+              spreadRadius: 0.5,
             ),
+          ],
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3),
+            width: 0.5,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  // Simple haptic feedback
-                  HapticFeedback.selectionClick();
-                  
-                  // Reset and play animation before state change
-                  animationController.reset();
-                  animationController.forward();
-                  
-                  // Store the current state
-                  final newCompletionState = !cachedTask.isCompleted;
-                  
-                  // Only update the database once the animation is well underway
-                  Future.delayed(const Duration(milliseconds: 500), () {
-                    // Use a local variable to avoid capturing the task from a future rebuild
-                    final taskToUpdate = Task(
-                      id: cachedTask.id,
-                      assignmentId: cachedTask.assignmentId,
-                      userId: cachedTask.userId,
-                      title: cachedTask.title,
-                      isCompleted: newCompletionState,
-                      createdAt: cachedTask.createdAt,
-                      completedAt: newCompletionState ? DateTime.now() : null,
-                    );
-                    
-                    // Update the database with our local state
-                    _taskService.updateTask(taskToUpdate);
-                  });
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
-                  child: ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    leading: RepaintBoundary(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: AnimatedBuilder(
-                          animation: animationController,
-                          builder: (context, child) {
-                            return Transform.scale(
-                              scale: Tween<double>(
-                                begin: 1.0,
-                                end: task.isCompleted ? 1.1 : 0.9,
-                              )
-                              .animate(CurvedAnimation(
-                                parent: animationController,
-                                curve: Curves.easeOut,
-                              ))
-                              .value,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: task.isCompleted 
-                                        ? Colors.green
-                                        : Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                                    width: 1.5,
-                                  ),
-                                  color: task.isCompleted
-                                      ? Colors.green.withOpacity(0.1)
-                                      : Colors.transparent,
-                                ),
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 300),
-                                  transitionBuilder: (child, animation) {
-                                    return ScaleTransition(
-                                      scale: animation,
-                                      child: FadeTransition(
-                                        opacity: animation, 
-                                        child: child
-                                      ),
-                                    );
-                                  },
-                                  child: task.isCompleted
-                                    ? const Icon(
-                                        Icons.check,
-                                        size: 16,
-                                        color: Colors.green,
-                                        key: ValueKey('completed'),
-                                      )
-                                    : const SizedBox(key: ValueKey('uncompleted')),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    title: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 300),
-                      style: TextStyle(
-                        decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                        color: task.isCompleted
-                            ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
-                            : Theme.of(context).colorScheme.onSurface,
-                      ),
-                      child: Text(task.title),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                      onPressed: () => _taskService.deleteTask(task.id),
-                      visualDensity: VisualDensity.compact,
-                      splashRadius: 24,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _toggleTaskCompletion(task),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
+                  leading: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: task.isCompleted 
+                            ? Colors.green
+                            : Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                        width: 1.5,
+                      ),
+                      color: task.isCompleted
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.transparent,
+                    ),
+                    child: task.isCompleted
+                      ? const Icon(
+                          Icons.check,
+                          size: 16,
+                          color: Colors.green,
+                        )
+                      : const SizedBox(),
+                  ),
+                  title: Text(
+                    task.title,
+                    style: TextStyle(
+                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                      color: task.isCompleted
+                          ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                    onPressed: () => _taskService.deleteTask(task.id),
+                    visualDensity: VisualDensity.compact,
+                    splashRadius: 24,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 ),
               ),
             ),
@@ -965,6 +890,12 @@ class _AssignmentDetailsScreenState extends State<AssignmentDetailsScreen> with 
         ),
       ),
     );
+  }
+
+  // Simplify the task completion method
+  Future<void> _toggleTaskCompletion(Task task) async {
+    // Use service method directly without animations
+    _taskService.toggleTaskCompletion(task);
   }
 }
 

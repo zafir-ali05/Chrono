@@ -11,6 +11,7 @@ import '../services/task_service.dart';
 import 'profile_screen.dart';
 import 'calendar_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,6 +26,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final GroupService _groupService = GroupService();
   final TaskService _taskService = TaskService();
   DateTime _focusedDay = DateTime.now();
+  
+  // Make sure this is initialized to false
+  bool _needsRefresh = false;
   
   // Stats for widgets
   int _totalAssignments = 0;
@@ -49,6 +53,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // Add this map declaration to store group names
   final Map<String, String> _groupNameCache = {};
+
+  // Add this property to your _HomeScreenState class
+  final Map<String, ValueNotifier<bool>> _assignmentRefreshNotifiers = {};
+
+  // Add this property for debouncing
+  Timer? _refreshDebounceTimer;
+  
+  // And this property to prevent duplicate status checks
+  final Set<String> _currentlyCheckingAssignments = {};
 
   // Modified method to dismiss keyboard only when it's actually showing
   void _dismissKeyboard() {
@@ -97,7 +110,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     // Listen for task status change events and update stats accordingly
     _taskService.onTaskStatusChanged.listen((event) {
+      // Refresh task stats 
       _fetchTaskStats();
+      
+      // Also refresh assignment stats for the affected assignment
+      if (_authService.currentUser != null) {
+        _checkAssignmentCompletionStatus(event.assignmentId, _authService.currentUser!.uid);
+      }
     });
   }
 
@@ -185,28 +204,51 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
   
-  // Check completion status for each assignment separately
+  // Update this method to prevent duplicate checks
   void _checkAssignmentCompletionStatus(String assignmentId, String userId) {
-    _assignmentService.isAssignmentCompleted(assignmentId, userId).listen((isCompleted) {
-      if (mounted) {
-        setState(() {
-          _assignmentCompletionStatus[assignmentId] = isCompleted;
+    // Skip if already checking this assignment
+    if (_currentlyCheckingAssignments.contains(assignmentId)) {
+      return;
+    }
+    
+    // Add to set of checking assignments
+    _currentlyCheckingAssignments.add(assignmentId);
+    
+    // Use take(1) to limit to a single emission when possible
+    _assignmentService.isAssignmentCompleted(assignmentId, userId)
+      .take(1)  // Take only the first emission when completion status is stable
+      .listen((isCompleted) {
+        if (mounted) {
+          setState(() {
+            _assignmentCompletionStatus[assignmentId] = isCompleted;
+            
+            // Update the completed assignments count based on the current status map
+            _completedAssignments = _assignmentCompletionStatus.values
+                .where((status) => status)
+                .length;
+          });
           
-          // Update the completed assignments count based on the current status map
-          _completedAssignments = _assignmentCompletionStatus.values
-              .where((status) => status)
-              .length;
-        });
-      }
-    });
+          // Remove from checking set after completion
+          _currentlyCheckingAssignments.remove(assignmentId);
+        }
+      });
   }
 
   @override
   void dispose() {
+    // Cancel the debounce timer
+    _refreshDebounceTimer?.cancel();
+    
     // Dispose all animation controllers
     for (final controller in _animationControllers.values) {
       controller.dispose();
     }
+    
+    // Dispose all notifiers
+    for (final notifier in _assignmentRefreshNotifiers.values) {
+      notifier.dispose();
+    }
+    
     super.dispose();
   }
 
@@ -243,7 +285,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: StreamBuilder<List<Assignment>>(
           stream: _assignmentService.getAllUserAssignments(user.uid),
           builder: (context, snapshot) {
-            // Group assignments by timeframe ahead of time
+            // Reset refresh flag whenever we build with fresh data
+            bool wasRefreshing = false;
+            if (_needsRefresh) {
+              wasRefreshing = true;
+              _needsRefresh = false;
+              
+              // Cancel any pending refresh timer when we get fresh data
+              _refreshDebounceTimer?.cancel();
+            }
+            
+            // Initialize lists and isLoading variable
             List<Assignment> overdue = [];
             List<Assignment> dueSoon = [];
             List<Assignment> upcoming = [];
@@ -251,6 +303,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             List<Assignment> completed = [];
             bool isLoading = snapshot.connectionState == ConnectionState.waiting;
             
+            // Process assignments if we have data
             if (!isLoading && snapshot.hasData) {
               final assignments = snapshot.data ?? [];
               final filteredAssignments = _filterAssignments(assignments);
@@ -1546,17 +1599,47 @@ String _getCountdownText(DateTime dueDate) {
                     Padding(
                       padding: const EdgeInsets.only(top: 0, bottom: 12),
                       child: RepaintBoundary(
-                        child: EmbeddedTasksList(
-                          assignmentId: assignment.id,
-                          userId: _authService.currentUser?.uid ?? '',
-                          taskService: _taskService,
-                          onTaskCompleted: (isCompleted) {
-                            // Never trigger state changes from here to avoid flickering
-                            // Use isolatedUpdate pattern to prevent UI tree rebuilds
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              // Intentionally empty - let the streams handle updates
-                            });
-                          },
+                        child: Builder(
+                          builder: (context) {
+                            // Create or get a ValueNotifier for this specific assignment
+                            final notifier = _assignmentRefreshNotifiers.putIfAbsent(
+                              assignment.id, 
+                              () => ValueNotifier<bool>(false)
+                            );
+                            
+                            return KeyedSubtree(
+                              // Use a stable key that doesn't change when completion status changes
+                              key: ValueKey('tasks-${assignment.id}'),
+                              child: EmbeddedTasksList(
+                                assignmentId: assignment.id,
+                                userId: _authService.currentUser?.uid ?? '',
+                                taskService: _taskService,
+                                onTaskCompleted: (hasCompletedTasks) {
+                                  // Use our ValueNotifier to prevent excessive rebuilds
+                                  if (!notifier.value) {
+                                    notifier.value = true; // Set flag to prevent multiple calls
+                                    
+                                    // Cancel any pending refresh
+                                    _refreshDebounceTimer?.cancel();
+                                    
+                                    // Use debounced refresh with longer delay
+                                    _refreshDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+                                      if (mounted) {
+                                        setState(() {
+                                          _needsRefresh = true;
+                                        });
+                                        
+                                        // Reset notifier after a delay
+                                        Future.delayed(const Duration(milliseconds: 300), () {
+                                          notifier.value = false;
+                                        });
+                                      }
+                                    });
+                                  }
+                                },
+                              ),
+                            );
+                          }
                         ),
                       ),
                     ),
@@ -1714,10 +1797,12 @@ class _SectionWrapperState extends State<_SectionWrapper> {
     });
     
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Header
-        GestureDetector(
+        // Header section - tap to expand/collapse
+        InkWell(
           onTap: _toggleExpansion,
+          borderRadius: BorderRadius.circular(18),
           child: _buildHeader(context),
         ),
         // This is the key fix: Completely isolate the assignment tiles from the section animation

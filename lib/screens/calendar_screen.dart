@@ -87,6 +87,17 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
         });
       }
     });
+
+    // Add this listener for task completion changes
+    _taskService.onTaskStatusChanged.listen((event) {
+      // Force refresh the UI when a task status changes
+      if (mounted) {
+        setState(() {
+          // This triggers a rebuild with the latest data from Firestore
+          _needsRefresh = true;
+        });
+      }
+    });
   }
   
   // Create a separate method to initialize or update the selected day controller
@@ -1420,7 +1431,15 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                       MaterialPageRoute(
                         builder: (context) => AssignmentDetailsScreen(assignment: assignment),
                       ),
-                    );
+                    ).then((_) {
+                      // Force refresh when returning from assignment details
+                      if (mounted) {
+                        setState(() {
+                          _needsRefresh = true; // For calendar screen
+                          // For group_details_screen, add this variable if it doesn't exist
+                        });
+                      }
+                    });
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(4),
@@ -1492,9 +1511,22 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                 Padding(
                   padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
                   child: EmbeddedTasksList(
+                    key: ValueKey('tasks-${assignment.id}-${_needsRefresh}'), // Force recreation when needsRefresh changes
                     assignmentId: assignment.id,
                     userId: _authService.currentUser?.uid ?? '',
                     taskService: _taskService,
+                    onTaskCompleted: (hasCompletedTasks) {
+                      // Using addPostFrameCallback to prevent immediate setState
+                      WidgetsBinding.instance.addPostFrameCallback((_) async {
+                        if (mounted) {
+                          await _assignmentService.checkCompletionStatusChange(assignment.id, _authService.currentUser?.uid ?? '');
+                          // Force refresh on next build
+                          setState(() {
+                            _needsRefresh = true;
+                          });
+                        }
+                      });
+                    },
                   ),
                 ),
               ],
@@ -1768,16 +1800,34 @@ class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStat
                     MaterialPageRoute(
                       builder: (context) => AssignmentDetailsScreen(assignment: assignment),
                     ),
-                  );
+                  ).then((_) {
+                    // Force refresh when returning from assignment details
+                    if (mounted) {
+                      setState(() {
+                        _needsRefresh = true; // For calendar screen
+                        // For group_details_screen, add this variable if it doesn't exist
+                      });
+                    }
+                  });
                 },
               ),
             ),
             Padding(
               padding: const EdgeInsets.only(top: 0, bottom: 4), // Reduced top padding to 0
               child: EmbeddedTasksList(
+                key: ValueKey('tasks-mini-${assignment.id}-${_needsRefresh}'), // Force recreation when needsRefresh changes
                 assignmentId: assignment.id,
                 userId: _authService.currentUser?.uid ?? '',
                 taskService: _taskService,
+                onTaskCompleted: (hasCompletedTasks) {
+                  // This callback ensures assignment completion status is updated
+                  if (mounted) {
+                    _assignmentService.checkCompletionStatusChange(assignment.id, _authService.currentUser?.uid ?? '');
+                    setState(() {
+                      _needsRefresh = true;
+                    });
+                  }
+                },
               ),
             ),
           ],

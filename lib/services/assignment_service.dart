@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Add this import
 import '../models/assignment.dart';
 import '../services/notification_service.dart';
-//import 'package:flutter/material.dart';
-//import 'package:flutter/cupertino.dart';
 import 'package:rxdart/rxdart.dart';
 import 'dart:async';
 
 class AssignmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance; // Add this line
   // Add cache for assignments
   final Map<String, List<Assignment>> _assignmentsCache = {};
   
@@ -27,13 +27,20 @@ class AssignmentService {
         .collection('assignments')
         .snapshots()
         .map((snapshot) {
-          final assignments = snapshot.docs.map((doc) {
-            return Assignment.fromMap(
+          // Use a map to deduplicate by ID
+          final Map<String, Assignment> uniqueAssignments = {};
+          
+          for (var doc in snapshot.docs) {
+            final assignment = Assignment.fromMap(
               doc.data(),
               id: doc.id,
               groupId: groupId,
             );
-          }).toList();
+            
+            uniqueAssignments[doc.id] = assignment;
+          }
+          
+          final assignments = uniqueAssignments.values.toList();
           
           // Update cache
           _assignmentsCache[groupId] = assignments;
@@ -173,58 +180,58 @@ class AssignmentService {
         .update(updates);
   }
 
-  Future<void> deleteAssignment({
-    required String groupId,
-    required String assignmentId,
-  }) async {
-    // Create a batch to perform multiple operations atomically
-    final batch = _firestore.batch();
+  // Future<void> deleteAssignment({
+  //   required String groupId,
+  //   required String assignmentId,
+  // }) async {
+  //   // Create a batch to perform multiple operations atomically
+  //   final batch = _firestore.batch();
     
-    // Reference to the assignment document
-    final assignmentRef = _firestore
-        .collection('groups')
-        .doc(groupId)
-        .collection('assignments')
-        .doc(assignmentId);
+  //   // Reference to the assignment document
+  //   final assignmentRef = _firestore
+  //       .collection('groups')
+  //       .doc(groupId)
+  //       .collection('assignments')
+  //       .doc(assignmentId);
     
-    // Add assignment deletion to batch
-    batch.delete(assignmentRef);
+  //   // Add assignment deletion to batch
+  //   batch.delete(assignmentRef);
     
-    // Get all tasks for this assignment
-    final taskSnapshot = await _firestore
-        .collection('tasks')
-        .where('assignmentId', isEqualTo: assignmentId)
-        .get();
+  //   // Get all tasks for this assignment
+  //   final taskSnapshot = await _firestore
+  //       .collection('tasks')
+  //       .where('assignmentId', isEqualTo: assignmentId)
+  //       .get();
     
-    // Add each task deletion to the batch
-    for (var doc in taskSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
+  //   // Add each task deletion to the batch
+  //   for (var doc in taskSnapshot.docs) {
+  //     batch.delete(doc.reference);
+  //   }
     
-    // Delete completion status documents
-    final completionSnapshot = await _firestore
-        .collection('completedAssignments')
-        .where('assignmentId', isEqualTo: assignmentId)
-        .get();
+  //   // Delete completion status documents
+  //   final completionSnapshot = await _firestore
+  //       .collection('completedAssignments')
+  //       .where('assignmentId', isEqualTo: assignmentId)
+  //       .get();
     
-    // Add each completion document deletion to the batch
-    for (var doc in completionSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
+  //   // Add each completion document deletion to the batch
+  //   for (var doc in completionSnapshot.docs) {
+  //     batch.delete(doc.reference);
+  //   }
     
-    // Commit the batch operation
-    await batch.commit();
+  //   // Commit the batch operation
+  //   await batch.commit();
     
-    // Also update the cache
-    if (_assignmentsCache.containsKey(groupId)) {
-      _assignmentsCache[groupId] = _assignmentsCache[groupId]!
-          .where((a) => a.id != assignmentId)
-          .toList();
-    }
+  //   // Also update the cache
+  //   if (_assignmentsCache.containsKey(groupId)) {
+  //     _assignmentsCache[groupId] = _assignmentsCache[groupId]!
+  //         .where((a) => a.id != assignmentId)
+  //         .toList();
+  //   }
     
-    // Log the deletion for debugging
-    print('Assignment $assignmentId deleted with all ${taskSnapshot.docs.length} associated tasks');
-  }
+  //   // Log the deletion for debugging
+  //   print('Assignment $assignmentId deleted with all ${taskSnapshot.docs.length} associated tasks');
+  // }
 
   Stream<List<Assignment>> getAllUserAssignments(String userId) {
     return _firestore
@@ -330,9 +337,65 @@ class AssignmentService {
           'userId': userId,
           'completedAt': FieldValue.serverTimestamp(),
         });
+        
+        // Also complete all incomplete tasks for this assignment
+        // Get all tasks for this assignment that are not completed
+        final tasksSnapshot = await _firestore
+          .collection('tasks')
+          .where('assignmentId', isEqualTo: assignmentId)
+          .where('userId', isEqualTo: userId)
+          .where('isCompleted', isEqualTo: false)
+          .get();
+          
+        // Update all tasks to be completed in a batch
+        if (tasksSnapshot.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          final now = Timestamp.now();
+          
+          for (final taskDoc in tasksSnapshot.docs) {
+            batch.update(taskDoc.reference, {
+              'isCompleted': true,
+              'completedAt': now,
+            });
+          }
+          
+          await batch.commit();
+          
+          // Emit task completion events to update UI
+          _assignmentStatusController.add(null);
+          
+          print('Completed ${tasksSnapshot.docs.length} tasks along with assignment');
+        }
       } else {
         // Mark as incomplete by deleting the document
         await docRef.delete();
+        
+        // Also mark all completed tasks for this assignment as incomplete
+        final tasksSnapshot = await _firestore
+          .collection('tasks')
+          .where('assignmentId', isEqualTo: assignmentId)
+          .where('userId', isEqualTo: userId)
+          .where('isCompleted', isEqualTo: true)
+          .get();
+          
+        // Update all tasks to be incomplete in a batch
+        if (tasksSnapshot.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          
+          for (final taskDoc in tasksSnapshot.docs) {
+            batch.update(taskDoc.reference, {
+              'isCompleted': false,
+              'completedAt': null,
+            });
+          }
+          
+          await batch.commit();
+          
+          // Emit task completion events to update UI
+          _assignmentStatusController.add(null);
+          
+          print('Marked ${tasksSnapshot.docs.length} tasks as incomplete along with assignment');
+        }
       }
       
       // Notify listeners about the status change
@@ -365,8 +428,126 @@ class AssignmentService {
         });
   }
   
+  // Add this method to your AssignmentService class
+  Future<void> checkCompletionStatusChange(String assignmentId, String userId) async {
+    try {
+      if (assignmentId.isEmpty || userId.isEmpty) {
+        print('Invalid assignment ID or user ID');
+        return;
+      }
+      
+      // Get all tasks for this assignment directly from Firestore to ensure fresh data
+      final tasksSnapshot = await _firestore
+        .collection('tasks')
+        .where('assignmentId', isEqualTo: assignmentId)
+        .where('userId', isEqualTo: userId)
+        .get(); // Using get() for fresh data instead of cached snapshots
+
+      final tasks = tasksSnapshot.docs.map((doc) => doc.data()).toList();
+      
+      // Debug print to track task status
+      print('Checking completion status for assignment $assignmentId - Found ${tasks.length} tasks');
+      tasks.forEach((task) {
+        print('Task ${task['id']}: isCompleted = ${task['isCompleted']}');
+      });
+      
+      // No tasks = not completed
+      if (tasks.isEmpty) {
+        await markAssignmentComplete(
+          assignmentId: assignmentId,
+          userId: userId,
+          complete: false,
+        );
+        return;
+      }
+
+      // Check if all tasks are completed
+      final allTasksCompleted = tasks.every((task) => task['isCompleted'] == true);
+      
+      // Mark assignment as complete only if all tasks are completed
+      await markAssignmentComplete(
+        assignmentId: assignmentId,
+        userId: userId,
+        complete: allTasksCompleted,
+      );
+      
+      print('Assignment $assignmentId completion status updated to: $allTasksCompleted');
+      
+      // Force emit an event to make sure all UI elements update
+      _assignmentStatusController.add(null);
+    } catch (e) {
+      print('Error checking assignment completion status: $e');
+    }
+  }
+  
   // Add this method to your dispose method or app cleanup
   void dispose() {
     _assignmentStatusController.close();
+  }
+
+  Future<void> deleteAssignment(String assignmentId, String groupId) async {
+    try {
+      // Check if user is authenticated
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Proper error handling with specific messages
+      try {
+        // Delete the assignment document
+        await _firestore.collection('groups') // Use _firestore instead of _db
+            .doc(groupId)
+            .collection('assignments')
+            .doc(assignmentId)
+            .delete();
+        
+        print('Successfully deleted assignment $assignmentId from group $groupId');
+        
+        // Also clean up any related tasks
+        final taskSnapshot = await _firestore
+            .collection('tasks')
+            .where('assignmentId', isEqualTo: assignmentId)
+            .get();
+        
+        // Delete tasks in a batch if there are any
+        if (taskSnapshot.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (var doc in taskSnapshot.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+          print('Deleted ${taskSnapshot.docs.length} related tasks');
+        }
+        
+        // Clean up completion status documents
+        final completionSnapshot = await _firestore
+            .collection('completedAssignments')
+            .where('assignmentId', isEqualTo: assignmentId)
+            .get();
+        
+        if (completionSnapshot.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (var doc in completionSnapshot.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+          print('Deleted ${completionSnapshot.docs.length} completion records');
+        }
+        
+        // Update cache
+        if (_assignmentsCache.containsKey(groupId)) {
+          _assignmentsCache[groupId] = _assignmentsCache[groupId]!
+              .where((a) => a.id != assignmentId)
+              .toList();
+        }
+      } catch (e) {
+        print('Error deleting assignment: $e');
+        throw Exception('Failed to delete assignment: ${e.toString()}');
+      }
+    } catch (e) {
+      print('Error in deleteAssignment: $e');
+      rethrow;
+    }
   }
 }
